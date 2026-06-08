@@ -9,7 +9,6 @@ import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
 import ar.edu.utn.dds.k3003.mappers.InsigniaMapper;
 import ar.edu.utn.dds.k3003.mappers.MisionMapper;
-import ar.edu.utn.dds.k3003.model.Donador;
 import ar.edu.utn.dds.k3003.model.Insignia;
 import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
 import ar.edu.utn.dds.k3003.model.Mision;
@@ -25,24 +24,29 @@ import org.springframework.stereotype.Service;
 @Service
 public class Fachada implements FachadaIncentivos {
 
-  private InsigniaRepository insigniaRepository;
-  private InMemoryMisionRepository misionRepository;
-  private InsigniaMapper insigniaMapper = new InsigniaMapper();
-  private MisionMapper misionMapper = new MisionMapper();
-  private InMemoryInsigniasDeDonadorRepository InsigniasDeDonadorRepository;
-  private InMemoryMisionDeDonadorRepository misionDeDonadorRepository;
+  private final InsigniaRepository insigniaRepository;
+  private final MisionRepository misionRepository;
+  private final InsigniaDeDonadorRepository InsigniasDeDonadorRepository;
+  private final MisionDeDonadorRepository misionDeDonadorRepository;
+  private final InsigniaMapper insigniaMapper = new InsigniaMapper();
+  private final MisionMapper misionMapper = new MisionMapper();
 
-  public Fachada() {
-    this.insigniaRepository = new InMemoryInsigniaRepository();
-    this.misionRepository = new InMemoryMisionRepository();
-    this.misionDeDonadorRepository = new InMemoryMisionDeDonadorRepository();
-    this.InsigniasDeDonadorRepository = new InMemoryInsigniasDeDonadorRepository();
+
+  public Fachada(
+      InsigniaRepository insigniaRepository,
+      MisionRepository misionRepository,
+      InsigniaDeDonadorRepository insigniaDeDonadorRepository,
+      MisionDeDonadorRepository misionDeDonadorRepository) {
+    this.insigniaRepository = insigniaRepository;
+    this.misionRepository = misionRepository;
+    this.InsigniasDeDonadorRepository = insigniaDeDonadorRepository;
+    this.misionDeDonadorRepository = misionDeDonadorRepository;
   }
 
   private FachadaDonaciones fachadaDonaciones;
   private FachadaDonadoresYEntidades fachadaDonadoresYEntidades;
 
-  //aplico get insignia y get mision para el postman
+
   public InsigniaDTO getInsignia(String id) {
     Insignia insignia =insigniaRepository.findById(id).orElseThrow(() -> new NoSuchElementException("No se encontró la insignia con ID: " + id));
     return insigniaMapper.toDTO(insignia);
@@ -53,10 +57,16 @@ public class Fachada implements FachadaIncentivos {
     return misionMapper.toDTO(mision);
   }
 
-  public List<InsigniaDTO> getAllInsignias() {return insigniaRepository.findAll();
+  public List<InsigniaDTO> getAllInsignias() {
+    return insigniaRepository.findAll().stream()
+        .map(insigniaMapper::toDTO)
+        .toList();
   }
 
-  public List<MisionDTO> getAllMisiones() {return misionRepository.findAll();
+  public List<MisionDTO> getAllMisiones() {
+    return misionRepository.findAll().stream()
+        .map(misionMapper::toDTO)
+        .toList();
   }
 
   @Override
@@ -114,10 +124,7 @@ public class Fachada implements FachadaIncentivos {
 
   @Override
   public List<InsigniaDTO> getInsigniasDeDonador(String donadorID) {
-//    Este método funciona únicamente como lectura del estado interno (repositorio).
-//    NO debe validar la existencia del donador contra FachadaDonadoresYEntidades,
-//    ya que los tests verifican que dicha validación ocurra exclusivamente en los métodos
-//    de asignación (asignarInsigniaADonador).
+
     var existente = InsigniasDeDonadorRepository.findByDonadorId(donadorID);
 
     if (existente.isEmpty()) {
@@ -145,10 +152,6 @@ public class Fachada implements FachadaIncentivos {
   }
   @Override
   public MisionDTO getMisionEnCursoDeDonador(String donadorID) throws NoSuchElementException {
-//    Los tests están diseñados para que la validación de existencia del donador ocurra
-//    únicamente en los métodos de asignación (asignarMisionADonador).Si se valida también aquí,
-//    se producirían múltiples invocaciones a
-//    buscarDonadorPorID, fallando los verify(times(1)).
 
     if (misionDeDonadorRepository.findByDonadorId(donadorID).isEmpty()) {
       try {
@@ -268,7 +271,6 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
 
       fachadaDonadoresYEntidades.modifcarCategoria(donadorID, mision.categoriaFin().name());
 
-      // Se busca el modelo de misionDeDonador para setear a null la misionActualId
       misionDeDonadorRepository
           .findByDonadorId(donadorID)
           .ifPresent(

@@ -1,12 +1,27 @@
 package ar.edu.utn.dds.k3003.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "insignias")
 public class Insignia {
 
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
   private String id;
+
+  @Column(name = "nombre", nullable = false)
   private String nombre;
+
+  @Column(name = "descripcion", columnDefinition = "TEXT")
   private String descripcion;
 
-  // Constructor vacío
+  // Constructor vacío (requerido por JPA)
   public Insignia() {}
 
   // Constructor completo
