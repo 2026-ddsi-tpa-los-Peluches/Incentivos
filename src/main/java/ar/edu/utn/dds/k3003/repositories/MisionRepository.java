@@ -1,17 +1,18 @@
 package ar.edu.utn.dds.k3003.repositories;
 
 import ar.edu.utn.dds.k3003.model.Mision;
-import java.util.Optional;
-import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import java.util.List;
+import java.util.Optional;
 
-
+/**
+ * Interfaz de repositorio de Misiones. La usa la Fachada como tipo de campo para poder
+ * funcionar tanto con la implementación JPA (producción) como con la InMemory (tests).
+ */
 public interface MisionRepository {
-  public Optional<Mision> findById(String id);
 
-  public Mision save(Mision mision);
+  Optional<Mision> findById(Integer id);
 
-  public Mision deleteById(String id);
+  Mision save(Mision mision);
 
-  public List<MisionDTO> findAll();
+  List<Mision> findAll();
 }

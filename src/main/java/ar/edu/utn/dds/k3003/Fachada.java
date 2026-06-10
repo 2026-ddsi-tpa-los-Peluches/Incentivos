@@ -14,11 +14,16 @@ import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
 import ar.edu.utn.dds.k3003.model.Mision;
 import ar.edu.utn.dds.k3003.model.MisionDeDonador;
 import ar.edu.utn.dds.k3003.repositories.*;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,16 +36,78 @@ public class Fachada implements FachadaIncentivos {
   private final InsigniaMapper insigniaMapper = new InsigniaMapper();
   private final MisionMapper misionMapper = new MisionMapper();
 
+  // Métricas (Micrometer -> Datadog)
+  private final MeterRegistry meterRegistry;
+  private final Counter misionesCreadas;
+  private final Counter insigniasCreadas;
+  private final Counter misionesCompletadas;
 
+
+  public Fachada() {
+    this.insigniaRepository = new InMemoryInsigniaRepository();
+    this.misionRepository = new InMemoryMisionRepository();
+    this.InsigniasDeDonadorRepository = new InMemoryInsigniasDeDonadorRepository();
+    this.misionDeDonadorRepository = new InMemoryMisionDeDonadorRepository();
+    // Sin Spring no hay registry real: usamos uno en memoria para no romper los tests.
+    this.meterRegistry = new SimpleMeterRegistry();
+    this.misionesCreadas = crearContadorMisionesCreadas();
+    this.insigniasCreadas = crearContadorInsigniasCreadas();
+    this.misionesCompletadas = crearContadorMisionesCompletadas();
+  }
+
+  // Constructor usado por Spring: inyecta las implementaciones JPA (persistencia real)
+  // y el MeterRegistry (que exporta a Datadog).
+  @Autowired
   public Fachada(
       InsigniaRepository insigniaRepository,
       MisionRepository misionRepository,
       InsigniaDeDonadorRepository insigniaDeDonadorRepository,
-      MisionDeDonadorRepository misionDeDonadorRepository) {
+      MisionDeDonadorRepository misionDeDonadorRepository,
+      MeterRegistry meterRegistry) {
     this.insigniaRepository = insigniaRepository;
     this.misionRepository = misionRepository;
     this.InsigniasDeDonadorRepository = insigniaDeDonadorRepository;
     this.misionDeDonadorRepository = misionDeDonadorRepository;
+    this.meterRegistry = meterRegistry;
+    this.misionesCreadas = crearContadorMisionesCreadas();
+    this.insigniasCreadas = crearContadorInsigniasCreadas();
+    this.misionesCompletadas = crearContadorMisionesCompletadas();
+  }
+
+  private Counter crearContadorMisionesCreadas() {
+    return Counter.builder("incentivos.misiones.creadas")
+        .description("Cantidad de misiones creadas")
+        .register(meterRegistry);
+  }
+
+  private Counter crearContadorInsigniasCreadas() {
+    return Counter.builder("incentivos.insignias.creadas")
+        .description("Cantidad de insignias creadas")
+        .register(meterRegistry);
+  }
+
+  private Counter crearContadorMisionesCompletadas() {
+    return Counter.builder("incentivos.misiones.completadas")
+        .description("Cantidad de misiones completadas por donadores")
+        .register(meterRegistry);
+  }
+
+  // Los DTO manejan el id como String, pero las entidades lo tienen como Integer (autoincremental).
+  // Estos helpers convierten y tratan un id null/no numérico como "no encontrado".
+  private Optional<Insignia> buscarInsignia(String id) {
+    try {
+      return id == null ? Optional.empty() : insigniaRepository.findById(Integer.valueOf(id));
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
+  }
+
+  private Optional<Mision> buscarMision(String id) {
+    try {
+      return id == null ? Optional.empty() : misionRepository.findById(Integer.valueOf(id));
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
   }
 
   private FachadaDonaciones fachadaDonaciones;
@@ -48,12 +115,12 @@ public class Fachada implements FachadaIncentivos {
 
 
   public InsigniaDTO getInsignia(String id) {
-    Insignia insignia =insigniaRepository.findById(id).orElseThrow(() -> new NoSuchElementException("No se encontró la insignia con ID: " + id));
+    Insignia insignia = buscarInsignia(id).orElseThrow(() -> new NoSuchElementException("No se encontró la insignia con ID: " + id));
     return insigniaMapper.toDTO(insignia);
   }
 
   public MisionDTO getMision(String id) {
-    Mision mision = misionRepository.findById(id).orElseThrow(() -> new NoSuchElementException("No se encontró la misión con ID: " + id));
+    Mision mision = buscarMision(id).orElseThrow(() -> new NoSuchElementException("No se encontró la misión con ID: " + id));
     return misionMapper.toDTO(mision);
   }
 
@@ -76,20 +143,15 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Insignia null");
     }
 
-    if (insigniaDTO.id() == null) {
-      insigniaDTO =
-          new InsigniaDTO(
-              java.util.UUID.randomUUID().toString(),
-              insigniaDTO.nombre(),
-              insigniaDTO.descripcion());
-    }
-
-    if (insigniaRepository.findById(insigniaDTO.id()).isPresent()) {
+    // Si viene un id explícito, validamos que no exista. Si viene null, lo genera la base.
+    if (insigniaDTO.id() != null && buscarInsignia(insigniaDTO.id()).isPresent()) {
       throw new IllegalArgumentException("Ya existe una insignia con el mismo ID");
     }
 
     Insignia insignia = insigniaMapper.toModel(insigniaDTO);
     Insignia guardada = insigniaRepository.save(insignia);
+
+    insigniasCreadas.increment();
 
     return insigniaMapper.toDTO(guardada);
   }
@@ -101,23 +163,15 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Mision nula");
     }
 
-    if (misionDTO.id() == null) {
-      misionDTO =
-          new MisionDTO(
-              java.util.UUID.randomUUID().toString(),
-              misionDTO.nombre(),
-              misionDTO.insigniaID(),
-              misionDTO.categoriaInicio(),
-              misionDTO.categoriaFin(),
-              misionDTO.tipo());
-    }
-
-    if (misionRepository.findById(misionDTO.id()).isPresent()) {
+    // Si viene un id explícito, validamos que no exista. Si viene null, lo genera la base.
+    if (misionDTO.id() != null && buscarMision(misionDTO.id()).isPresent()) {
       throw new IllegalArgumentException("Ya existe una misión con el mismo ID");
     }
 
     Mision mision = misionMapper.toModel(misionDTO);
     Mision guardada = misionRepository.save(mision);
+
+    misionesCreadas.increment();
 
     return misionMapper.toDTO(guardada);
   }
@@ -145,7 +199,7 @@ public class Fachada implements FachadaIncentivos {
     }
 
     return existente.get().getInsigniasIds().stream()
-            .map(id -> insigniaRepository.findById(id)
+            .map(id -> buscarInsignia(id)
                     .orElseThrow(NoSuchElementException::new))
             .map(insigniaMapper::toDTO)
             .toList();
@@ -173,8 +227,7 @@ public class Fachada implements FachadaIncentivos {
     }
 
     Mision mision =
-        misionRepository
-            .findById(misionId)
+        buscarMision(misionId)
             .orElseThrow(
                 () -> new NoSuchElementException("No se encontró la misión con ID: " + misionId));
 
@@ -194,8 +247,7 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Mision nula");
     }
 
-    misionRepository
-        .findById(misionDTO.id())
+    buscarMision(misionDTO.id())
         .orElseThrow(() -> new NoSuchElementException("No existe la misión"));
 
     MisionDeDonador misionDeDonador =
@@ -220,8 +272,7 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Insignia nula");
     }
 
-    insigniaRepository
-        .findById(insigniaDTO.id())
+    buscarInsignia(insigniaDTO.id())
         .orElseThrow(() -> new NoSuchElementException("No existe la insignia"));
 
     InsigniasDeDonador donador =
@@ -265,7 +316,9 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
 
     if (cumplida) {
 
-      Insignia insignia = insigniaRepository.findById(mision.insigniaID()).orElseThrow();
+      misionesCompletadas.increment();
+
+      Insignia insignia = buscarInsignia(mision.insigniaID()).orElseThrow();
 
       asignarInsigniaADonador(donadorID, insigniaMapper.toDTO(insignia));
 

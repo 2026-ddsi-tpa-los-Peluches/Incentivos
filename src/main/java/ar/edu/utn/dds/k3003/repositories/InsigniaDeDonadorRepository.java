@@ -2,14 +2,14 @@ package ar.edu.utn.dds.k3003.repositories;
 
 import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
-public interface InsigniaDeDonadorRepository
-    extends JpaRepository<InsigniasDeDonador, String> {
+/**
+ * Interfaz de repositorio de Insignias por Donador. La usa la Fachada como tipo de campo para
+ * poder funcionar tanto con la implementación JPA (producción) como con la InMemory (tests).
+ */
+public interface InsigniaDeDonadorRepository {
 
-  // donadorId es la @Id, así que esto equivale a findById,
-  // pero lo dejamos con este nombre para no tocar la fachada.
+  InsigniasDeDonador save(InsigniasDeDonador insigniasDeDonador);
+
   Optional<InsigniasDeDonador> findByDonadorId(String donadorId);
 }

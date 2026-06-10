@@ -2,15 +2,17 @@ package ar.edu.utn.dds.k3003.repositories;
 
 import ar.edu.utn.dds.k3003.model.Insignia;
 import java.util.List;
-import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.InsigniaDTO;
 import java.util.Optional;
 
+/**
+ * Interfaz de repositorio de Insignias. La usa la Fachada como tipo de campo para poder
+ * funcionar tanto con la implementación JPA (producción) como con la InMemory (tests).
+ */
 public interface InsigniaRepository {
-  public Optional<Insignia> findById(String id);
 
-  public Insignia save(Insignia insignia);
+  Optional<Insignia> findById(Integer id);
 
-  public Insignia deleteById(String id);
+  Insignia save(Insignia insignia);
 
-  public List<InsigniaDTO> findAll();
+  List<Insignia> findAll();
 }

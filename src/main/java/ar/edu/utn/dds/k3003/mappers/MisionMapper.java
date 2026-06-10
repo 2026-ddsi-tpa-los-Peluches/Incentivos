@@ -7,7 +7,9 @@ public class MisionMapper {
 
   public Mision toModel(MisionDTO dto) {
     Mision mision = new Mision();
-    mision.setId(dto.id());
+    if (dto.id() != null && !dto.id().isBlank()) {
+      mision.setId(Integer.valueOf(dto.id()));
+    }
     mision.setNombre(dto.nombre());
     mision.setInsigniaId(dto.insigniaID());
     mision.setCategoriaInicio(dto.categoriaInicio());
@@ -17,8 +19,9 @@ public class MisionMapper {
   }
 
   public MisionDTO toDTO(Mision model) {
+    String id = model.getId() == null ? null : String.valueOf(model.getId());
     return new MisionDTO(
-        model.getId(),
+        id,
         model.getNombre(),
         model.getInsigniaId(),
         model.getCategoriaInicio(),

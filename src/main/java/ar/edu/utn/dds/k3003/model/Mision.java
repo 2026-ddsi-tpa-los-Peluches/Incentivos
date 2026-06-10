@@ -2,15 +2,42 @@ package ar.edu.utn.dds.k3003.model;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.CategoriaDonadorEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.TipoMisionEnum;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
+@Entity
+@Table(name = "misiones")
 public class Mision {
 
-  private String id;
+  // El id numérico ascendente lo genera la base de datos (IDENTITY / autoincremental).
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "id")
+  private Integer id;
+
+  @Column(name = "nombre", nullable = false)
   private String nombre;
+
+  @Column(name = "insignia_id")
   private String insigniaId;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "categoria_inicio")
   private CategoriaDonadorEnum categoriaInicio;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "categoria_fin")
   private CategoriaDonadorEnum categoriaFin;
-  private TipoMisionEnum tipoMision; 
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "tipo_mision")
+  private TipoMisionEnum tipoMision;
 
   // Constructor vacío
   public Mision() {}
@@ -32,11 +59,11 @@ public class Mision {
 
   // Getters y Setters
 
-  public String getId() {
+  public Integer getId() {
     return id;
   }
 
-  public void setId(String id) {
+  public void setId(Integer id) {
     this.id = id;
   }
 

@@ -11,9 +11,11 @@ import jakarta.persistence.Table;
 @Table(name = "insignias")
 public class Insignia {
 
+  // El id numérico ascendente lo genera la base de datos (IDENTITY / autoincremental).
   @Id
-  @GeneratedValue(strategy = GenerationType.UUID)
-  private String id;
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "id")
+  private Integer id;
 
   @Column(name = "nombre", nullable = false)
   private String nombre;
@@ -31,11 +33,11 @@ public class Insignia {
   }
 
   // Getters y Setters
-  public String getId() {
+  public Integer getId() {
     return id;
   }
 
-  public void setId(String id) {
+  public void setId(Integer id) {
     this.id = id;
   }
 

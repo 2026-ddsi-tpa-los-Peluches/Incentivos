@@ -7,13 +7,16 @@ public class InsigniaMapper {
 
   public Insignia toModel(InsigniaDTO dto) {
     Insignia insignia = new Insignia();
-    insignia.setId(dto.id());
+    if (dto.id() != null && !dto.id().isBlank()) {
+      insignia.setId(Integer.valueOf(dto.id()));
+    }
     insignia.setNombre(dto.nombre());
     insignia.setDescripcion(dto.descripcion());
     return insignia;
   }
 
   public InsigniaDTO toDTO(Insignia model) {
-    return new InsigniaDTO(model.getId(), model.getNombre(), model.getDescripcion());
+    String id = model.getId() == null ? null : String.valueOf(model.getId());
+    return new InsigniaDTO(id, model.getNombre(), model.getDescripcion());
   }
 }
