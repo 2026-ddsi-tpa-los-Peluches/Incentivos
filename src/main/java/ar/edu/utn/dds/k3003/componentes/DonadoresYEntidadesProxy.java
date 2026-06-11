@@ -1,0 +1,138 @@
+package ar.edu.utn.dds.k3003.componentes;
+
+import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
+import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
+import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
+/**
+ * Adapter REST contra el servicio de Donadores y Entidades.
+ * Implementa la interfaz {@link FachadaDonadoresYEntidades}, pero solo los métodos
+ * que Incentivos realmente consume (buscarDonadorPorID y modifcarCategoria).
+ * El resto lanza UnsupportedOperationException porque este módulo no los usa.
+ */
+@Service
+public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
+
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final String baseUrl;
+
+    public DonadoresYEntidadesProxy(@Value("${DONADORES_Y_ENTIDADES:}") String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+
+    // GET /donadores/{id}  -> trae el donador. Si no existe, lanza NoSuchElementException.
+    @Override
+    public DonadorDTO buscarDonadorPorID(String donadorID) throws NoSuchElementException {
+        try {
+            String url = baseUrl + "/donadores/" + donadorID;
+            DonadorDTO donador = restTemplate.getForObject(url, DonadorDTO.class);
+            if (donador == null) {
+                throw new NoSuchElementException("No existe el donador " + donadorID);
+            }
+            return donador;
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new NoSuchElementException("No existe el donador " + donadorID);
+        } catch (NoSuchElementException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Error al consultar el donador " + donadorID + " en Donadores y Entidades", e);
+        }
+    }
+
+    // PUT /donadores/{id}/categoria  body { "categoria": "<X>" } -> actualiza la categoría del donador.
+    // OJO: esta ruta NO está en los endpoints "no modificables" del enunciado; verificá contra el
+    // Swagger real de Donadores y Entidades (ruta y método) y ajustá si difiere.
+    @Override
+    public DonadorDTO modifcarCategoria(String donadorID, String categoria)
+            throws NoSuchElementException {
+        try {
+            String url = baseUrl + "/donadores/" + donadorID + "/categoria";
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(Map.of("categoria", categoria));
+            ResponseEntity<DonadorDTO> resp =
+                    restTemplate.exchange(url, HttpMethod.PUT, request, DonadorDTO.class);
+            return resp.getBody();
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new NoSuchElementException("No existe el donador " + donadorID);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Error al modificar la categoría del donador " + donadorID
+                            + " en Donadores y Entidades", e);
+        }
+    }
+
+    // --- Métodos de la interfaz que Incentivos NO usa ---
+
+    @Override
+    public DonadorDTO agregarDonador(DonadorDTO donadorDTO) {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public EntidadBeneficaDTO agregarEntidad(EntidadBeneficaDTO entidadBeneficaDTO) {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public EntidadBeneficaDTO buscarEntidadPorID(String entidadID) throws NoSuchElementException {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public NecesidadMaterialDTO registrarNecesidad(NecesidadMaterialDTO necesidadMaterialDTO) {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public QuejaDTO agregarQueja(QuejaDTO quejaDTO) throws NoSuchElementException {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public Boolean puedeDonar(String donadorID) throws NoSuchElementException {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public List<QuejaDTO> obtenerQuejasDe(String donadorID) throws NoSuchElementException {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public DonadorDTO modificarEstado(String donadorID, EstadoDonadorEnum estado)
+            throws NoSuchElementException {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public List<NecesidadMaterialDTO> obtenerNecesidadesInsatisfechasDe(String productoSolicitadoID) {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public NecesidadMaterialDTO satisfacerNecesidad(String necesidadID, Integer cantidad)
+            throws NoSuchElementException {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public DonadorStatsDTO estadisticasDonador(String donadorID) {
+        throw new UnsupportedOperationException("No implementado en Incentivos");
+    }
+
+    @Override
+    public void setFachadaIncentivos(FachadaIncentivos fachadaIncentivos) {
+        // No-op: este proxy no necesita la referencia inversa.
+    }
+}
