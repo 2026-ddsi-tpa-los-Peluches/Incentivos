@@ -29,9 +29,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class Fachada implements FachadaIncentivos {
 
+  @Autowired
   private final InsigniaRepository insigniaRepository;
+  @Autowired
   private final MisionRepository misionRepository;
+  @Autowired
   private final InsigniaDeDonadorRepository InsigniasDeDonadorRepository;
+  @Autowired
   private final MisionDeDonadorRepository misionDeDonadorRepository;
   private final InsigniaMapper insigniaMapper = new InsigniaMapper();
   private final MisionMapper misionMapper = new MisionMapper();
@@ -42,18 +46,6 @@ public class Fachada implements FachadaIncentivos {
   private final Counter insigniasCreadas;
   private final Counter misionesCompletadas;
 
-
-  public Fachada() {
-    this.insigniaRepository = new InMemoryInsigniaRepository();
-    this.misionRepository = new InMemoryMisionRepository();
-    this.InsigniasDeDonadorRepository = new InMemoryInsigniasDeDonadorRepository();
-    this.misionDeDonadorRepository = new InMemoryMisionDeDonadorRepository();
-    // Sin Spring no hay registry real: usamos uno en memoria para no romper los tests.
-    this.meterRegistry = new SimpleMeterRegistry();
-    this.misionesCreadas = crearContadorMisionesCreadas();
-    this.insigniasCreadas = crearContadorInsigniasCreadas();
-    this.misionesCompletadas = crearContadorMisionesCompletadas();
-  }
 
   // Constructor usado por Spring: inyecta las implementaciones JPA (persistencia real)
   // y el MeterRegistry (que exporta a Datadog).
