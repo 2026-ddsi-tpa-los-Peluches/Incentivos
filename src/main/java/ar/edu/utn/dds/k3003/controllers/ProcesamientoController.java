@@ -20,7 +20,7 @@ public class  ProcesamientoController {
 
     // Opcion 1 utilizando @RequestMapping
     @RequestMapping(method = RequestMethod.POST)
-    public ResponseEntity<Void> procesar(@RequestBody String donadorID) {
+    public ResponseEntity<Void> procesar(@PathVariable String donadorID) {
         try {
             fachada.procesarDonador(donadorID);
             //retorno 204 si todo esta  bien

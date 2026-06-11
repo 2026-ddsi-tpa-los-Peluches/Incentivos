@@ -49,7 +49,7 @@ public class MisionDonadorIDController {
     // Mision en curso de DONADOR
     // Opcion 2 utilizando @GetMapping
     @GetMapping
-    public ResponseEntity<?> getMisionEnCurso(@RequestBody String donadorID) {
+    public ResponseEntity<?> getMisionEnCurso(@PathVariable String donadorID) {
         MisionDTO mision= fachada.getMisionEnCursoDeDonador(donadorID);
         if (mision == null ){
             return ResponseEntity.status(404).build();

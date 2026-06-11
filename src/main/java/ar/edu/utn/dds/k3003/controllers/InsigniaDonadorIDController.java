@@ -45,7 +45,7 @@ public class InsigniaDonadorIDController {
 
     // Opcion 2 utilizando @GetMapping
     @GetMapping
-    public ResponseEntity<?> getAllInsigniasDonador(@RequestBody String donadorID) {
+    public ResponseEntity<?> getAllInsigniasDonador(@PathVariable String donadorID) {
         List<InsigniaDTO> insignias = fachada.getInsigniasDeDonador(donadorID);
         if (insignias == null) {
             return ResponseEntity.status(404).build();

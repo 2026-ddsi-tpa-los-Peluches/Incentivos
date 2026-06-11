@@ -29,6 +29,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class Fachada implements FachadaIncentivos {
 
+  private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Fachada.class);
+
   @Autowired
   private final InsigniaRepository insigniaRepository;
   @Autowired
@@ -104,6 +106,11 @@ public class Fachada implements FachadaIncentivos {
 
   private FachadaDonaciones fachadaDonaciones;
   private FachadaDonadoresYEntidades fachadaDonadoresYEntidades;
+
+  // Cliente REST para notificar (push) a Donadores y Entidades cuando un donador
+  // gana una insignia o se le asigna una misión. Se cablea en IntegracionFachadas.
+  // Queda null en los tests (que instancian la Fachada por reflection): el push se omite.
+  private ar.edu.utn.dds.k3003.componentes.DonadoresYEntidadesClient donadoresYEntidadesClient;
 
 
   public InsigniaDTO getInsignia(String id) {
@@ -250,6 +257,10 @@ public class Fachada implements FachadaIncentivos {
     misionDeDonador.agregarMision(misionDTO.id());
 
     misionDeDonadorRepository.save(misionDeDonador);
+
+    // Push (best-effort) a Donadores y Entidades: avisamos la misión asignada para sus
+    // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
+    notificarMisionADonadoresYEntidades(donadorID, misionDTO.id());
   }
 
   @Override
@@ -274,6 +285,34 @@ public class Fachada implements FachadaIncentivos {
     donador.agregarInsignia(insigniaDTO.id());
 
     InsigniasDeDonadorRepository.save(donador);
+
+    // Push (best-effort) a Donadores y Entidades: avisamos la insignia ganada para sus
+    // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
+    notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
+  }
+
+  private void notificarInsigniaADonadoresYEntidades(String donadorID, String insigniaID) {
+    if (donadoresYEntidadesClient == null) {
+      return;
+    }
+    try {
+      donadoresYEntidadesClient.asignarInsigniaADonador(donadorID, insigniaID);
+    } catch (RuntimeException e) {
+      log.warn("No se pudo notificar la insignia {} del donador {} a Donadores y Entidades: {}",
+          insigniaID, donadorID, e.getMessage());
+    }
+  }
+
+  private void notificarMisionADonadoresYEntidades(String donadorID, String misionID) {
+    if (donadoresYEntidadesClient == null) {
+      return;
+    }
+    try {
+      donadoresYEntidadesClient.asignarMisionADonador(donadorID, misionID);
+    } catch (RuntimeException e) {
+      log.warn("No se pudo notificar la misión {} del donador {} a Donadores y Entidades: {}",
+          misionID, donadorID, e.getMessage());
+    }
   }
 
   @Override
@@ -334,6 +373,11 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
   @Override
   public void setFachadaDonadoresYEntidades(FachadaDonadoresYEntidades fachadaDonadoresYEntidades) {
     this.fachadaDonadoresYEntidades = fachadaDonadoresYEntidades;
+  }
+
+  public void setDonadoresYEntidadesClient(
+      ar.edu.utn.dds.k3003.componentes.DonadoresYEntidadesClient donadoresYEntidadesClient) {
+    this.donadoresYEntidadesClient = donadoresYEntidadesClient;
   }
 
   public Boolean revisarEstadoMision(
