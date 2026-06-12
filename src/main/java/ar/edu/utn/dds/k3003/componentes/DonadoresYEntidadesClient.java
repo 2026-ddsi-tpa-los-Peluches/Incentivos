@@ -39,14 +39,17 @@ public class DonadoresYEntidadesClient {
     }
 
     // PATCH /donadores/{donadorID}/misionActual  -> setea (reemplaza) el id de misión actual
-    // del donador en DyE. Body: { "misionID": "<id>" }
+    // del donador en DyE. Body: { "misionActualID": "<id>" }
+    // Admite misionActualID == null para limpiar la misión en curso cuando el donador la completó.
     public void asignarMisionADonador(String donadorId, String misionActualID) {
         if (isMock) return;
 
         try {
             String url = baseUrl + "/donadores/" + donadorId + "/misionActual";
             // DyE espera el body { "misionActualID": "<id>" } (coincide con el nombre del path).
-            restTemplate.patchForObject(url, java.util.Map.of("misionActualID", misionActualID), Void.class);
+            // Usamos singletonMap (y no Map.of) porque Map.of no admite valores null.
+            restTemplate.patchForObject(
+                url, java.util.Collections.singletonMap("misionActualID", misionActualID), Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Error al asignar la misión " + misionActualID + " al donador " + donadorId

@@ -20,9 +20,11 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -316,7 +318,10 @@ public class Fachada implements FachadaIncentivos {
     var donador = fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
     String categoriaActual = donador.categoria();
 
-if (!categoriaActual.equals(mision.categoriaInicio().name())) {
+// Comparamos desde el lado de la misión para no romper con NPE si el donador no tiene categoría.
+// equalsIgnoreCase porque DyE devuelve la categoría con otra capitalización ("Ocasional")
+// que no coincide literal con el name() del enum ("OCASIONAL").
+if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
     throw new IllegalStateException("El donador no cumple con la categoría inicial de la misión");
 }
 
@@ -353,6 +358,10 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
                 misionDeDonador.setMisionActualId(null);
                 misionDeDonadorRepository.save(misionDeDonador);
               });
+
+      // Avisamos a DyE que el donador ya no tiene misión en curso (misionActualID = null),
+      // para que su estado quede sincronizado con el reset local.
+      notificarMisionADonadoresYEntidades(donadorID, null);
     }
   }
 
@@ -371,21 +380,45 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
     this.donadoresYEntidadesClient = donadoresYEntidadesClient;
   }
 
+  // Resuelve la categoría (categoriaID) de un producto contra el módulo de Donaciones.
+  // Devuelve null si no se puede resolver (producto null, Donaciones caído o sin fachada),
+  // de modo que ese producto simplemente no sume una categoría.
+  private String obtenerCategoriaDeProducto(String productoID) {
+    if (productoID == null || fachadaDonaciones == null) {
+      return null;
+    }
+    try {
+      var producto = fachadaDonaciones.buscarProductoPorID(productoID);
+      return producto == null ? null : producto.categoriaID();
+    } catch (RuntimeException e) {
+      log.warn("No se pudo resolver la categoría del producto {}: {}", productoID, e.getMessage());
+      return null;
+    }
+  }
+
   public Boolean revisarEstadoMision(
       String donadorID, MisionDTO mision, List<DonacionDTO> donaciones) {
 
     switch (mision.tipo()) {
       case COMPLETITUD:
-        //La mision consiste en realizar donaciones a 3 categorias distintas de productos.
-        List<String> categorias = new ArrayList<>();
-        int distintasCategorias = 0;
+        // La misión consiste en realizar donaciones a 3 categorías distintas de productos.
+        // El DonacionDTO solo trae productoID, así que primero juntamos los productos distintos
+        // (para no llamar a Donaciones más de una vez por el mismo producto) y recién ahí
+        // resolvemos cada uno contra Donaciones (GET /productos/{id}) para contar categorías.
+        Set<String> productosDistintos = new HashSet<>();
         for (DonacionDTO donacion : donaciones) {
-          if (!categorias.contains(donacion.productoID())) {
-            categorias.add(donacion.productoID());
-            distintasCategorias++;
+          if (donacion.productoID() != null) {
+            productosDistintos.add(donacion.productoID());
           }
         }
-        return distintasCategorias >= 3;
+        Set<String> categoriasDistintas = new HashSet<>();
+        for (String productoID : productosDistintos) {
+          String categoriaID = obtenerCategoriaDeProducto(productoID);
+          if (categoriaID != null) {
+            categoriasDistintas.add(categoriaID);
+          }
+        }
+        return categoriasDistintas.size() >= 3;
       case DONACIONES_EXITOSAS:
         //La misión consiste en realizar 20 donaciones exitosas (aceptadas).
         int contadorExitosas = 0;

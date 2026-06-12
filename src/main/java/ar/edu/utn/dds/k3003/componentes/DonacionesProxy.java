@@ -77,9 +77,27 @@ public class DonacionesProxy implements FachadaDonaciones {
         throw new UnsupportedOperationException("No implementado en Incentivos");
     }
 
+    // GET /productos/{id} -> trae el producto (incluye categoriaID), usado para evaluar
+    // la misión de COMPLETITUD (contar categorías distintas de las donaciones).
     @Override
     public ProductoDTO buscarProductoPorID(String productoID) throws NoSuchElementException {
-        throw new UnsupportedOperationException("No implementado en Incentivos");
+        if (isMock) {
+            throw new NoSuchElementException(
+                    "Producto " + productoID + " no disponible (Donaciones en modo mock)");
+        }
+        try {
+            String url = baseUrl + "/productos/" + productoID;
+            ProductoDTO producto = restTemplate.getForObject(url, ProductoDTO.class);
+            if (producto == null) {
+                throw new NoSuchElementException("No existe el producto " + productoID);
+            }
+            return producto;
+        } catch (NoSuchElementException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Error al consultar el producto " + productoID + " en Donaciones", e);
+        }
     }
 
     @Override
