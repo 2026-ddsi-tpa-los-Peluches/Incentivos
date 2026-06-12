@@ -30,19 +30,16 @@ public class MisionDonadorIDController {
 
     //MODIFICAR
         public ResponseEntity<Void> asignarMision(@PathVariable String donadorID,@RequestBody MisionIDRequest misionID) {
-        // Aplico lo mismo que en Insignia
-        String mision = misionID.getMisionID();
-        MisionDTO misionDTO = fachada.getMision(mision);
         try {
+            String mision = misionID.getMisionID();
+            MisionDTO misionDTO = fachada.getMision(mision);
             fachada.asignarMisionADonador(donadorID, misionDTO);
-            return ResponseEntity.noContent().build(); // devuelve 204 al ser un void no es necesario que devuelva nada de parametros
+            return ResponseEntity.noContent().build(); // 204
         } catch (IllegalStateException e) {
-
             return ResponseEntity.status(404).build();
         } catch (NoSuchElementException e) {
-
+            // misión inexistente o misionID nulo/equivocado en el body
             return ResponseEntity.status(412).build();
-
         }
     }
 

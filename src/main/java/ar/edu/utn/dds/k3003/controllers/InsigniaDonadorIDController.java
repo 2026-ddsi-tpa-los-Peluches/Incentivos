@@ -29,16 +29,15 @@ public class InsigniaDonadorIDController {
     // MODIFICAR
     public ResponseEntity<Void> asignarInsignia(@PathVariable String donadorID,
             @RequestBody InsigniaIDRequest insigniaID) {
-        // Obtengo el string posta, la insigniaID
-        String insignia = insigniaID.getInsigniaID();
-        // Busco el DTO y todo cae
-        InsigniaDTO insigniaDTO = fachada.getInsignia(insignia);
         try {
+            String insignia = insigniaID.getInsigniaID();
+            InsigniaDTO insigniaDTO = fachada.getInsignia(insignia);
             fachada.asignarInsigniaADonador(donadorID, insigniaDTO);
             return ResponseEntity.noContent().build();
         } catch (IllegalStateException e) {
             return ResponseEntity.status(412).build();
         } catch (RuntimeException e) {
+            // insignia inexistente o insigniaID nulo/equivocado en el body
             return ResponseEntity.status(404).build();
         }
     }

@@ -33,15 +33,14 @@ public class DonacionesProxy implements FachadaDonaciones {
         this.isMock = (baseUrl == null || baseUrl.isBlank());
     }
 
-    // GET /donaciones?donadorID={id}&fechaInicio={fecha} -> donaciones del donador desde esa fecha.
-    // OJO: ruta/params asumidos; verificá contra el Swagger real de Donaciones y ajustá si difiere.
+    // GET /donaciones/search?donadorID={id}&fechaInicio={fecha} -> donaciones del donador desde esa fecha.
     @Override
     public List<DonacionDTO> buscarPorDonadorYFechaInicio(String donadorID, LocalDate fecha)
             throws NoSuchElementException {
         if (isMock) return List.of();
 
         try {
-            String url = baseUrl + "/donaciones?donadorID=" + donadorID + "&fechaInicio=" + fecha;
+            String url = baseUrl + "/donaciones/search?donadorID=" + donadorID + "&fechaInicio=" + fecha;
             DonacionDTO[] donaciones = restTemplate.getForObject(url, DonacionDTO[].class);
             return donaciones == null ? List.of() : Arrays.asList(donaciones);
         } catch (Exception e) {
