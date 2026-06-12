@@ -322,10 +322,18 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
 
 
 
-    List<DonacionDTO> donaciones =
-        fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
+    List<DonacionDTO> donaciones;
+    try {
+      donaciones =
+          fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
+    } catch (RuntimeException e) {
+      // Si Donaciones está caído/no responde, no podemos evaluar la misión:
+      // logueamos y salimos sin romper el procesamiento del donador.
+      log.warn("No se pudo obtener el historial de donaciones del donador {}: {}",
+          donadorID, e.getMessage());
+      return;
+    }
 
-      
     Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones);
 
     if (cumplida) {
@@ -388,28 +396,35 @@ if (!categoriaActual.equals(mision.categoriaInicio().name())) {
         }
         return contadorExitosas >= 20;
       case DONACIONES_ASCENDENTES:
-        //La misión consiste en realizar 5 donaciones con cantidades ascendentes (cada donación debe ser de una cantidad mayor a la anterior).  
-    if (donaciones.size() < 5) {
-        return false;
-    }
-
-    List<DonacionDTO> ultimas5 = donaciones
-        .subList(donaciones.size() - 5, donaciones.size());
-
-    int cantidadAnterior = 0;
-
-    for (DonacionDTO donacion : ultimas5) {
-        if (donacion.cantidad() < cantidadAnterior) {
-            return false;
+        //La misión consiste en realizar 5 donaciones con cantidades ascendentes (cada donación debe ser de una cantidad mayor a la anterior).
+        // Solo consideramos donaciones con cantidad informada (no null), respetando el orden recibido.
+        List<Integer> cantidades = new ArrayList<>();
+        for (DonacionDTO donacion : donaciones) {
+          if (donacion.cantidad() != null) {
+            cantidades.add(donacion.cantidad());
+          }
         }
-        cantidadAnterior = donacion.cantidad();
-    }
-
-    return true;
+        if (cantidades.size() < 5) {
+          return false;
+        }
+        // Buscamos cualquier racha de 5 donaciones consecutivas estrictamente ascendentes,
+        // en vez de depender únicamente de que las últimas 5 lo sean.
+        int ascendentesSeguidas = 1;
+        for (int i = 1; i < cantidades.size(); i++) {
+          if (cantidades.get(i) > cantidades.get(i - 1)) {
+            ascendentesSeguidas++;
+            if (ascendentesSeguidas >= 5) {
+              return true;
+            }
+          } else {
+            ascendentesSeguidas = 1;
+          }
+        }
+        return false;
       case REVOLUCION_DONADORA:
         int cantidadDonacionesMas50=0;
         for(DonacionDTO donacion : donaciones) {
-          if (donacion.cantidad()>50) {
+          if (donacion.cantidad() != null && donacion.cantidad() > 50) {
             cantidadDonacionesMas50++;
           }
         }
