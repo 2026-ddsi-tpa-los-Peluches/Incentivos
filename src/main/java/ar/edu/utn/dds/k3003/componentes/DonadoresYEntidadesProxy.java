@@ -24,7 +24,10 @@ import java.util.NoSuchElementException;
 @Service
 public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    // JdkClientHttpRequestFactory (java.net.http) en vez del default, porque el
+    // SimpleClientHttpRequestFactory de RestTemplate NO soporta PATCH (que usa modifcarCategoria).
+    private final RestTemplate restTemplate =
+            new RestTemplate(new org.springframework.http.client.JdkClientHttpRequestFactory());
     private final String baseUrl;
 
     public DonadoresYEntidadesProxy(@Value("${DONADORES_Y_ENTIDADES:}") String baseUrl) {
@@ -51,9 +54,8 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
         }
     }
 
-    // PUT /donadores/{id}/categoria  body { "categoria": "<X>" } -> actualiza la categoría del donador.
-    // OJO: esta ruta NO está en los endpoints "no modificables" del enunciado; verificá contra el
-    // Swagger real de Donadores y Entidades (ruta y método) y ajustá si difiere.
+    // PATCH /donadores/{id}/categoria  body { "categoria": "<X>" } -> actualiza la categoría del donador.
+    // DyE rechaza PUT en esta ruta ("Request method 'PUT' is not supported"); usa PATCH como en misionActual.
     @Override
     public DonadorDTO modifcarCategoria(String donadorID, String categoria)
             throws NoSuchElementException {
@@ -61,7 +63,7 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
             String url = baseUrl + "/donadores/" + donadorID + "/categoria";
             HttpEntity<Map<String, String>> request = new HttpEntity<>(Map.of("categoria", categoria));
             ResponseEntity<DonadorDTO> resp =
-                    restTemplate.exchange(url, HttpMethod.PUT, request, DonadorDTO.class);
+                    restTemplate.exchange(url, HttpMethod.PATCH, request, DonadorDTO.class);
             return resp.getBody();
         } catch (HttpClientErrorException.NotFound e) {
             throw new NoSuchElementException("No existe el donador " + donadorID);
