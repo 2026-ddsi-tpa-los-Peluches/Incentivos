@@ -1,7 +1,6 @@
 package ar.edu.utn.dds.k3003.componentes;
 
 import ar.edu.utn.dds.k3003.dtos.InsigniaIDRequest;
-import ar.edu.utn.dds.k3003.dtos.MisionIDRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -46,7 +45,8 @@ public class DonadoresYEntidadesClient {
 
         try {
             String url = baseUrl + "/donadores/" + donadorId + "/misionActual";
-            restTemplate.patchForObject(url, new MisionIDRequest(misionActualID), Void.class);
+            // DyE espera el body { "misionActualID": "<id>" } (coincide con el nombre del path).
+            restTemplate.patchForObject(url, java.util.Map.of("misionActualID", misionActualID), Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Error al asignar la misión " + misionActualID + " al donador " + donadorId
