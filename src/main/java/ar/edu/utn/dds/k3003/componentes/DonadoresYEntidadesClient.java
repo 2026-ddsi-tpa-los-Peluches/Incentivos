@@ -41,15 +41,15 @@ public class DonadoresYEntidadesClient {
 
     // PATCH /donadores/{donadorID}/misionActual  -> setea (reemplaza) el id de misión actual
     // del donador en DyE. Body: { "misionID": "<id>" }
-    public void asignarMisionADonador(String donadorId, String misionId) {
+    public void asignarMisionADonador(String donadorId, String misionActualID) {
         if (isMock) return;
 
         try {
             String url = baseUrl + "/donadores/" + donadorId + "/misionActual";
-            restTemplate.patchForObject(url, new MisionIDRequest(misionId), Void.class);
+            restTemplate.patchForObject(url, new MisionIDRequest(misionActualID), Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
-                    "Error al asignar la misión " + misionId + " al donador " + donadorId
+                    "Error al asignar la misión " + misionActualID + " al donador " + donadorId
                             + " en Donadores y Entidades", e);
         }
     }
