@@ -2,6 +2,7 @@ package ar.edu.utn.dds.k3003;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donaciones.DonacionDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.donaciones.EstadoDonacionEnum;
+import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.DonadorStatsDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.InsigniaDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
@@ -177,49 +178,31 @@ public class Fachada implements FachadaIncentivos {
 
   @Override
   public List<InsigniaDTO> getInsigniasDeDonador(String donadorID) {
-
-    var existente = InsigniasDeDonadorRepository.findByDonadorId(donadorID);
-
-    if (existente.isEmpty()) {
-      try {
-        var donador = fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
-
-        if (donador == null) {
-          throw new RuntimeException("Donador inexistente");
-        }
-
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-
-      InsigniasDeDonador nuevo = new InsigniasDeDonador(donadorID);
-      InsigniasDeDonadorRepository.save(nuevo);
-      existente = java.util.Optional.of(nuevo);
+    // Los ids de insignias del donador los guarda DyE: los leemos de sus estadísticas y
+    // enriquecemos cada id con el catálogo local de insignias.
+    List<String> insigniasID;
+    try {
+      insigniasID = fachadaDonadoresYEntidades.estadisticasDonador(donadorID).insigniasID();
+    } catch (NoSuchElementException e) {
+      return null; // donador/estadísticas inexistentes -> el controller responde 404
     }
 
-    return existente.get().getInsigniasIds().stream()
-            .map(id -> buscarInsignia(id)
-                    .orElseThrow(NoSuchElementException::new))
-            .map(insigniaMapper::toDTO)
-            .toList();
+    if (insigniasID == null) {
+      return List.of();
+    }
+
+    return insigniasID.stream()
+        .map(id -> buscarInsignia(id).orElseThrow(NoSuchElementException::new))
+        .map(insigniaMapper::toDTO)
+        .toList();
   }
   @Override
   public MisionDTO getMisionEnCursoDeDonador(String donadorID) throws NoSuchElementException {
+    // La misión actual del donador la guarda DyE (un único id): la leemos de sus estadísticas
+    // y la enriquecemos con el catálogo local de misiones.
+    DonadorStatsDTO stats = fachadaDonadoresYEntidades.estadisticasDonador(donadorID);
 
-    if (misionDeDonadorRepository.findByDonadorId(donadorID).isEmpty()) {
-      try {
-        fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    MisionDeDonador misionDeDonador =
-        misionDeDonadorRepository
-            .findByDonadorId(donadorID)
-            .orElseGet(() -> misionDeDonadorRepository.save(new MisionDeDonador(donadorID)));
-
-    String misionId = misionDeDonador.getMisionActualId();
+    String misionId = stats == null ? null : stats.misionActualID();
 
     if (misionId == null) {
       throw new NoSuchElementException("El donador no tiene una misión en curso");

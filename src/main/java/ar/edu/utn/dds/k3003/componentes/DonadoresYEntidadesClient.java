@@ -9,7 +9,10 @@ import org.springframework.web.client.RestTemplate;
 @Service
 public class DonadoresYEntidadesClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    // JdkClientHttpRequestFactory (java.net.http) en vez del default, porque el
+    // SimpleClientHttpRequestFactory de RestTemplate NO soporta PATCH (que usa el push de misión).
+    private final RestTemplate restTemplate =
+            new RestTemplate(new org.springframework.http.client.JdkClientHttpRequestFactory());
     private final String baseUrl;
     private final boolean isMock;
 
@@ -21,7 +24,7 @@ public class DonadoresYEntidadesClient {
         this.isMock = "http://localhost:8082".equals(baseUrl);
     }
 
-    // POST /insigniasDonador/{donadorID}  -> asigna una insignia a un donador por su id.
+    // POST /insigniasDonador/{donadorID}  -> agrega una insignia a la LISTA del donador en DyE.
     // Body: { "insigniaID": "<id>" }
     public void asignarInsigniaADonador(String donadorId, String insigniaId) {
         if (isMock) return;
@@ -36,14 +39,14 @@ public class DonadoresYEntidadesClient {
         }
     }
 
-    // POST /misionesDonador/{donadorID}  -> asigna una misión a un donador por su id.
-    // Body: { "misionID": "<id>" }
+    // PATCH /donadores/{donadorID}/misionActual  -> setea (reemplaza) el id de misión actual
+    // del donador en DyE. Body: { "misionID": "<id>" }
     public void asignarMisionADonador(String donadorId, String misionId) {
         if (isMock) return;
 
         try {
-            String url = baseUrl + "/misionesDonador/" + donadorId;
-            restTemplate.postForObject(url, new MisionIDRequest(misionId), Void.class);
+            String url = baseUrl + "/donadores/" + donadorId + "/misionActual";
+            restTemplate.patchForObject(url, new MisionIDRequest(misionId), Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Error al asignar la misión " + misionId + " al donador " + donadorId

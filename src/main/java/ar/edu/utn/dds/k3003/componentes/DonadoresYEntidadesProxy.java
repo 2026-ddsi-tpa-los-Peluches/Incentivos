@@ -126,9 +126,27 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
         throw new UnsupportedOperationException("No implementado en Incentivos");
     }
 
+    // GET /donadores/{id}/estadisticas -> stats del donador en DyE.
+    // El DonadorStatsDTO incluye la lista insigniasID[] y el misionActualID, que Incentivos
+    // usa para responder sus GET /insigniasDonador/{id} y GET /misionesDonador/{id}.
     @Override
     public DonadorStatsDTO estadisticasDonador(String donadorID) {
-        throw new UnsupportedOperationException("No implementado en Incentivos");
+        try {
+            String url = baseUrl + "/donadores/" + donadorID + "/estadisticas";
+            DonadorStatsDTO stats = restTemplate.getForObject(url, DonadorStatsDTO.class);
+            if (stats == null) {
+                throw new NoSuchElementException("No hay estadísticas para el donador " + donadorID);
+            }
+            return stats;
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new NoSuchElementException("No existe el donador " + donadorID);
+        } catch (NoSuchElementException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Error al consultar estadísticas del donador " + donadorID
+                            + " en Donadores y Entidades", e);
+        }
     }
 
     @Override

@@ -50,11 +50,14 @@ public class MisionDonadorIDController {
     // Opcion 2 utilizando @GetMapping
     @GetMapping
     public ResponseEntity<?> getMisionEnCurso(@PathVariable String donadorID) {
-        MisionDTO mision= fachada.getMisionEnCursoDeDonador(donadorID);
-        if (mision == null ){
+        try {
+            MisionDTO mision = fachada.getMisionEnCursoDeDonador(donadorID);
+            if (mision == null) {
+                return ResponseEntity.status(404).build();
+            }
+            return ResponseEntity.ok(mision);
+        } catch (NoSuchElementException e) {
             return ResponseEntity.status(404).build();
         }
-        return ResponseEntity.ok(mision);
-
     }
 }
