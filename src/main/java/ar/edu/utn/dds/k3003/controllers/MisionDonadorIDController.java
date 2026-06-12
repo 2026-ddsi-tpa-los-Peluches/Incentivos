@@ -26,7 +26,7 @@ public class MisionDonadorIDController {
 
     // Opcion 1 utilizando @RequestMapping
     //asignar mision a un DONADOR
-    @RequestMapping(method = RequestMethod.POST)
+    @RequestMapping(method = RequestMethod.PATCH)
 
     //MODIFICAR
         public ResponseEntity<Void> asignarMision(@PathVariable String donadorID,@RequestBody MisionIDRequest misionID) {
