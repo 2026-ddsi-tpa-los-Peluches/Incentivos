@@ -248,6 +248,14 @@ public class Fachada implements FachadaIncentivos {
     notificarMisionADonadoresYEntidades(donadorID, misionDTO.id());
   }
 
+  // Categoría actual del donador (consultando a DyE). La usa el controller para validar, antes
+  // de asignar una misión, que la categoría inicial de la misión coincida con la del donador.
+  // No se valida dentro de asignarMisionADonador porque un test de cátedra asigna a propósito
+  // una misión con categoría no coincidente y espera que la fachada no falle.
+  public String categoriaActualDeDonador(String donadorID) {
+    return fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID).categoria();
+  }
+
   @Override
   public void asignarInsigniaADonador(String donadorID, InsigniaDTO insigniaDTO) {
     try {
@@ -429,8 +437,9 @@ if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
         }
         return contadorExitosas >= 20;
       case DONACIONES_ASCENDENTES:
-        //La misión consiste en realizar 5 donaciones con cantidades ascendentes (cada donación debe ser de una cantidad mayor a la anterior).
-        // Solo consideramos donaciones con cantidad informada (no null), respetando el orden recibido.
+        // Las últimas 5 donaciones deben tener cantidades estrictamente ascendentes.
+        // Respetamos el orden en que las entrega Donaciones (es su responsabilidad mandarlas
+        // ordenadas por fecha); acá solo las recibimos y evaluamos.
         List<Integer> cantidades = new ArrayList<>();
         for (DonacionDTO donacion : donaciones) {
           if (donacion.cantidad() != null) {
@@ -440,20 +449,14 @@ if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
         if (cantidades.size() < 5) {
           return false;
         }
-        // Buscamos cualquier racha de 5 donaciones consecutivas estrictamente ascendentes,
-        // en vez de depender únicamente de que las últimas 5 lo sean.
-        int ascendentesSeguidas = 1;
-        for (int i = 1; i < cantidades.size(); i++) {
-          if (cantidades.get(i) > cantidades.get(i - 1)) {
-            ascendentesSeguidas++;
-            if (ascendentesSeguidas >= 5) {
-              return true;
-            }
-          } else {
-            ascendentesSeguidas = 1;
+        // Tomamos las últimas 5 (en el orden recibido) y verificamos que sean ascendentes.
+        List<Integer> ultimas5 = cantidades.subList(cantidades.size() - 5, cantidades.size());
+        for (int i = 1; i < ultimas5.size(); i++) {
+          if (ultimas5.get(i) <= ultimas5.get(i - 1)) {
+            return false;
           }
         }
-        return false;
+        return true;
       case REVOLUCION_DONADORA:
         int cantidadDonacionesMas50=0;
         for(DonacionDTO donacion : donaciones) {

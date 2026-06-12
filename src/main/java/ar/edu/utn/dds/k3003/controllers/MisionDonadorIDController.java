@@ -33,6 +33,14 @@ public class MisionDonadorIDController {
         try {
             String mision = misionID.getMisionID();
             MisionDTO misionDTO = fachada.getMision(mision);
+
+            // No se puede asignar una misión cuya categoría inicial no coincide con la categoría
+            // actual del donador (p. ej. asignar una misión de OCASIONAL a un REVOLUCIONARIO).
+            String categoriaDonador = fachada.categoriaActualDeDonador(donadorID);
+            if (!misionDTO.categoriaInicio().name().equalsIgnoreCase(categoriaDonador)) {
+                return ResponseEntity.status(409).build(); // 409 Conflict
+            }
+
             fachada.asignarMisionADonador(donadorID, misionDTO);
             return ResponseEntity.noContent().build(); // 204
         } catch (IllegalStateException e) {
