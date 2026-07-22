@@ -65,4 +65,15 @@ public class MisionDonadorIDController {
             return ResponseEntity.status(404).build();
         }
     }
+
+    // Cancelar la mision en curso del DONADOR
+    @DeleteMapping
+    public ResponseEntity<Void> quitarMision(@PathVariable String donadorID) {
+        try {
+            fachada.quitarMisionDeDonador(donadorID);
+            return ResponseEntity.noContent().build(); // 204
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(404).build();
+        }
+    }
 }

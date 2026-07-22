@@ -8,16 +8,14 @@ import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import ar.edu.utn.dds.k3003.componentes.DonadoresYEntidadesClient;
 import ar.edu.utn.dds.k3003.mappers.InsigniaMapper;
-import ar.edu.utn.dds.k3003.mappers.MisionMapper;
 import ar.edu.utn.dds.k3003.model.Insignia;
-import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
-import ar.edu.utn.dds.k3003.model.Mision;
 import ar.edu.utn.dds.k3003.model.MisionDeDonador;
-import ar.edu.utn.dds.k3003.repositories.*;
+import ar.edu.utn.dds.k3003.servicios.InsigniasService;
+import ar.edu.utn.dds.k3003.servicios.MisionesService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -30,157 +28,64 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.CategoriaDonadorEnum;
-
+// Orquestador del módulo Incentivos: valida contra los otros módulos (Donaciones, Donadores y
+// Entidades), decide cuándo una misión se completa/pierde/cancela, y notifica. El CRUD de
+// insignias y misiones (y sus repos) vive en InsigniasService/MisionesService.
 @Service
 public class Fachada implements FachadaIncentivos {
 
   private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Fachada.class);
 
-  @Autowired
-  private final InsigniaRepository insigniaRepository;
-  @Autowired
-  private final MisionRepository misionRepository;
-  @Autowired
-  private final InsigniaDeDonadorRepository InsigniasDeDonadorRepository;
-  @Autowired
-  private final MisionDeDonadorRepository misionDeDonadorRepository;
+  private final InsigniasService insigniasService;
+  private final MisionesService misionesService;
   private final InsigniaMapper insigniaMapper = new InsigniaMapper();
-  private final MisionMapper misionMapper = new MisionMapper();
 
-  // Métricas (Micrometer -> Datadog)
-  private final MeterRegistry meterRegistry;
-  private final Counter misionesCreadas;
-  private final Counter insigniasCreadas;
+  // Métrica propia de Fachada: las de creación de insignias/misiones viven en cada servicio.
   private final Counter misionesCompletadas;
-
-
-  // Constructor usado por Spring: inyecta las implementaciones JPA (persistencia real)
-  // y el MeterRegistry (que exporta a Datadog).
-  @Autowired
-  public Fachada(
-      InsigniaRepository insigniaRepository,
-      MisionRepository misionRepository,
-      InsigniaDeDonadorRepository insigniaDeDonadorRepository,
-      MisionDeDonadorRepository misionDeDonadorRepository,
-      MeterRegistry meterRegistry) {
-    this.insigniaRepository = insigniaRepository;
-    this.misionRepository = misionRepository;
-    this.InsigniasDeDonadorRepository = insigniaDeDonadorRepository;
-    this.misionDeDonadorRepository = misionDeDonadorRepository;
-    this.meterRegistry = meterRegistry;
-    this.misionesCreadas = crearContadorMisionesCreadas();
-    this.insigniasCreadas = crearContadorInsigniasCreadas();
-    this.misionesCompletadas = crearContadorMisionesCompletadas();
-  }
-
-  private Counter crearContadorMisionesCreadas() {
-    return Counter.builder("incentivos.misiones.creadas")
-        .description("Cantidad de misiones creadas")
-        .register(meterRegistry);
-  }
-
-  private Counter crearContadorInsigniasCreadas() {
-    return Counter.builder("incentivos.insignias.creadas")
-        .description("Cantidad de insignias creadas")
-        .register(meterRegistry);
-  }
-
-  private Counter crearContadorMisionesCompletadas() {
-    return Counter.builder("incentivos.misiones.completadas")
-        .description("Cantidad de misiones completadas por donadores")
-        .register(meterRegistry);
-  }
-
-  // Los DTO manejan el id como String, pero las entidades lo tienen como Integer (autoincremental).
-  // Estos helpers convierten y tratan un id null/no numérico como "no encontrado".
-  private Optional<Insignia> buscarInsignia(String id) {
-    try {
-      return id == null ? Optional.empty() : insigniaRepository.findById(Integer.valueOf(id));
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
-
-  private Optional<Mision> buscarMision(String id) {
-    try {
-      return id == null ? Optional.empty() : misionRepository.findById(Integer.valueOf(id));
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
 
   private FachadaDonaciones fachadaDonaciones;
   private FachadaDonadoresYEntidades fachadaDonadoresYEntidades;
 
   // Cliente REST para notificar (push) a Donadores y Entidades cuando un donador
-  // gana una insignia o se le asigna una misión. Se cablea en IntegracionFachadas.
+  // gana/pierde una insignia o se le asigna/cancela una misión. Se cablea en IntegracionFachadas.
   // Queda null en los tests (que instancian la Fachada por reflection): el push se omite.
-  private ar.edu.utn.dds.k3003.componentes.DonadoresYEntidadesClient donadoresYEntidadesClient;
+  private DonadoresYEntidadesClient donadoresYEntidadesClient;
 
+  @Autowired
+  public Fachada(
+      InsigniasService insigniasService, MisionesService misionesService, MeterRegistry meterRegistry) {
+    this.insigniasService = insigniasService;
+    this.misionesService = misionesService;
+    this.misionesCompletadas =
+        Counter.builder("incentivos.misiones.completadas")
+            .description("Cantidad de misiones completadas por donadores")
+            .register(meterRegistry);
+  }
 
   public InsigniaDTO getInsignia(String id) {
-    Insignia insignia = buscarInsignia(id).orElseThrow(() -> new NoSuchElementException("No se encontró la insignia con ID: " + id));
-    return insigniaMapper.toDTO(insignia);
+    return insigniasService.getInsignia(id);
   }
 
   public MisionDTO getMision(String id) {
-    Mision mision = buscarMision(id).orElseThrow(() -> new NoSuchElementException("No se encontró la misión con ID: " + id));
-    return misionMapper.toDTO(mision);
+    return misionesService.getMision(id);
   }
 
   public List<InsigniaDTO> getAllInsignias() {
-    return insigniaRepository.findAll().stream()
-        .map(insigniaMapper::toDTO)
-        .toList();
+    return insigniasService.getAllInsignias();
   }
 
   public List<MisionDTO> getAllMisiones() {
-    return misionRepository.findAll().stream()
-        .map(misionMapper::toDTO)
-        .toList();
+    return misionesService.getAllMisiones();
   }
 
   @Override
   public InsigniaDTO agregarInsignia(InsigniaDTO insigniaDTO) {
-
-    if (insigniaDTO == null) {
-      throw new IllegalArgumentException("Insignia null");
-    }
-
-    // Si viene un id explícito, validamos que no exista. Si viene null, lo genera la base.
-    if (insigniaDTO.id() != null && buscarInsignia(insigniaDTO.id()).isPresent()) {
-      throw new IllegalArgumentException("Ya existe una insignia con el mismo ID");
-    }
-
-    Insignia insignia = insigniaMapper.toModel(insigniaDTO);
-    Insignia guardada = insigniaRepository.save(insignia);
-
-    insigniasCreadas.increment();
-
-    return insigniaMapper.toDTO(guardada);
+    return insigniasService.agregarInsignia(insigniaDTO);
   }
- 
-
 
   @Override
   public MisionDTO agregarMision(MisionDTO misionDTO) {
-
-    if (misionDTO == null) {
-      throw new IllegalArgumentException("Mision nula");
-    }
-
-    // Si viene un id explícito, validamos que no exista. Si viene null, lo genera la base.
-    if (misionDTO.id() != null && buscarMision(misionDTO.id()).isPresent()) {
-      throw new IllegalArgumentException("Ya existe una misión con el mismo ID");
-    }
-
-    Mision mision = misionMapper.toModel(misionDTO);
-    Mision guardada = misionRepository.save(mision);
-
-    misionesCreadas.increment();
-
-    return misionMapper.toDTO(guardada);
+    return misionesService.agregarMision(misionDTO);
   }
 
   @Override
@@ -198,11 +103,9 @@ public class Fachada implements FachadaIncentivos {
       return List.of();
     }
 
-    return insigniasID.stream()
-        .map(id -> buscarInsignia(id).orElseThrow(NoSuchElementException::new))
-        .map(insigniaMapper::toDTO)
-        .toList();
+    return insigniasService.obtenerInsigniasPorIds(insigniasID);
   }
+
   @Override
   public MisionDTO getMisionEnCursoDeDonador(String donadorID) throws NoSuchElementException {
     // La misión actual del donador la guarda DyE (un único id): la leemos de sus estadísticas
@@ -215,12 +118,7 @@ public class Fachada implements FachadaIncentivos {
       throw new NoSuchElementException("El donador no tiene una misión en curso");
     }
 
-    Mision mision =
-        buscarMision(misionId)
-            .orElseThrow(
-                () -> new NoSuchElementException("No se encontró la misión con ID: " + misionId));
-
-    return misionMapper.toDTO(mision);
+    return misionesService.getMision(misionId);
   }
 
   @Override
@@ -236,21 +134,39 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Mision nula");
     }
 
-    buscarMision(misionDTO.id())
+    misionesService
+        .buscarMisionModel(misionDTO.id())
         .orElseThrow(() -> new NoSuchElementException("No existe la misión"));
 
-    MisionDeDonador misionDeDonador =
-        misionDeDonadorRepository
-            .findByDonadorId(donadorID)
-            .orElseGet(() -> misionDeDonadorRepository.save(new MisionDeDonador(donadorID)));
-
-    misionDeDonador.agregarMision(misionDTO.id());
-
-    misionDeDonadorRepository.save(misionDeDonador);
+    misionesService.agregarMisionADonador(donadorID, misionDTO.id());
 
     // Push (best-effort) a Donadores y Entidades: avisamos la misión asignada para sus
     // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
     notificarMisionADonadoresYEntidades(donadorID, misionDTO.id());
+  }
+
+  // Cancela la misión en curso del donador (sin otorgar insignia ni cambiar de categoría:
+  // no es "completarla" ni "perder el progreso", es sacársela sin más, p. ej. una corrección
+  // del admin). El historial en misionesIds se conserva.
+  public void quitarMisionDeDonador(String donadorID) {
+    try {
+      fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    MisionDeDonador misionDeDonador =
+        misionesService
+            .buscarPorDonador(donadorID)
+            .orElseThrow(() -> new NoSuchElementException("El donador no tiene una misión en curso"));
+
+    if (misionDeDonador.getMisionActualId() == null) {
+      throw new NoSuchElementException("El donador no tiene una misión en curso");
+    }
+
+    misionesService.limpiarMisionActual(donadorID);
+
+    notificarMisionADonadoresYEntidades(donadorID, null);
   }
 
   // Categoría actual del donador (consultando a DyE). La usa el controller para validar, antes
@@ -273,26 +189,15 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Insignia nula");
     }
 
-    buscarInsignia(insigniaDTO.id())
-        .orElseThrow(() -> new NoSuchElementException("No existe la insignia"));
-
-    InsigniasDeDonador donador =
-        InsigniasDeDonadorRepository.findByDonadorId(donadorID)
-            .orElseGet(() -> InsigniasDeDonadorRepository.save(new InsigniasDeDonador(donadorID)));
-
-    
-
-    donador.agregarInsignia(insigniaDTO.id());
-
-    InsigniasDeDonadorRepository.save(donador);
+    insigniasService.agregarInsigniaADonador(donadorID, insigniaDTO.id());
 
     // Push (best-effort) a Donadores y Entidades: avisamos la insignia ganada para sus
     // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
     notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
   }
 
-   public void quitarInsigniaDonador(String donadorID, InsigniaDTO insigniaDTO ){
-      try {
+  public void quitarInsigniaDonador(String donadorID, InsigniaDTO insigniaDTO) {
+    try {
       fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -302,25 +207,12 @@ public class Fachada implements FachadaIncentivos {
       throw new IllegalArgumentException("Insignia nula");
     }
 
-    buscarInsignia(insigniaDTO.id())
-        .orElseThrow(() -> new NoSuchElementException("No existe la insignia"));
+    insigniasService.quitarInsigniaDeDonador(donadorID, insigniaDTO.id());
 
-    InsigniasDeDonador donador =
-        InsigniasDeDonadorRepository.findByDonadorId(donadorID)
-        //No deberia llegar a este caso nunca
-            .orElseGet(() -> InsigniasDeDonadorRepository.save(new InsigniasDeDonador(donadorID)));
-
-    
-
-    donador.quitarInsignia(insigniaDTO.id());
-
-    InsigniasDeDonadorRepository.save(donador);
-
-    // Push (best-effort) a Donadores y Entidades: avisamos la insignia ganada para sus
-    // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
+    // Push (best-effort) a Donadores y Entidades: avisamos la baja de la insignia para sus
+    // estadísticas. Si DyE está caído, la baja local ya quedó persistida y no la revertimos.
     notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
-    }
-
+  }
 
   private void notificarInsigniaADonadoresYEntidades(String donadorID, String insigniaID) {
     if (donadoresYEntidadesClient == null) {
@@ -349,12 +241,11 @@ public class Fachada implements FachadaIncentivos {
   @Override
   public void procesarDonador(String donadorID) {
     try {
-    fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+      fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
 
-    
     MisionDTO mision = getMisionEnCursoDeDonador(donadorID);
 
     if (fachadaDonaciones == null) {
@@ -364,14 +255,12 @@ public class Fachada implements FachadaIncentivos {
     var donador = fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
     String categoriaActual = donador.categoria();
 
-// Comparamos desde el lado de la misión para no romper con NPE si el donador no tiene categoría.
-// equalsIgnoreCase porque DyE devuelve la categoría con otra capitalización ("Ocasional")
-// que no coincide literal con el name() del enum ("OCASIONAL").
-if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
-    throw new IllegalStateException("El donador no cumple con la categoría inicial de la misión");
-}
-
-
+    // Comparamos desde el lado de la misión para no romper con NPE si el donador no tiene categoría.
+    // equalsIgnoreCase porque DyE devuelve la categoría con otra capitalización ("Ocasional")
+    // que no coincide literal con el name() del enum ("OCASIONAL").
+    if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
+      throw new IllegalStateException("El donador no cumple con la categoría inicial de la misión");
+    }
 
     List<DonacionDTO> donaciones;
     try {
@@ -384,59 +273,48 @@ if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
           donadorID, e.getMessage());
       return;
     }
-    CategoriaDonadorEnum estadoInicialPreMision = mision.categoriaInicio();
+
     Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones);
 
-    if (!cumplida) {
+    if (cumplida) {
 
       misionesCompletadas.increment();
 
-      Insignia insignia = buscarInsignia(mision.insigniaID()).orElseThrow();
+      Insignia insignia = insigniasService.buscarInsigniaModel(mision.insigniaID()).orElseThrow();
 
       asignarInsigniaADonador(donadorID, insigniaMapper.toDTO(insignia));
 
       fachadaDonadoresYEntidades.modifcarCategoria(donadorID, mision.categoriaFin().name());
 
-      misionDeDonadorRepository
-          .findByDonadorId(donadorID)
-          .ifPresent(
-              misionDeDonador -> {
-                misionDeDonador.setMisionActualId(null);
-                misionDeDonadorRepository.save(misionDeDonador);
-              });
+      misionesService.limpiarMisionActual(donadorID);
 
       // Avisamos a DyE que el donador ya no tiene misión en curso (misionActualID = null),
       // para que su estado quede sincronizado con el reset local.
       notificarMisionADonadoresYEntidades(donadorID, null);
     }
-      //func
   }
 
-
-
+  // Espejo de procesarDonador: revisa la misión que hizo subir al donador a su categoría
+  // ACTUAL (no la que tiene en curso). Si al recalcularla hoy ya no se cumple (p. ej. bajaron
+  // las donaciones ACEPTADA por una queja), revierte insignia y categoría.
   public void revisarMisionAnterior(String donadorID) {
     try {
-    fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+      fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    
 
     if (fachadaDonaciones == null) {
       return;
     }
-    
+
     var donador = fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
-    String categoriaActual = donador.categoria();
-    Optional<MisionDTO> misionCompletada = buscarMisionPorCategoriaActual(donador.categoria());
-if (misionCompletada.isEmpty()) {
-    return; // categoría base o sin misión asociada -> nada que regresar
-}
+    Optional<MisionDTO> misionCompletada =
+        misionesService.buscarMisionPorCategoriaActual(donador.categoria());
+    if (misionCompletada.isEmpty()) {
+      return; // categoría base o sin misión asociada -> nada que regresar
+    }
     MisionDTO mision = misionCompletada.get();
-
-
-
-
 
     List<DonacionDTO> donaciones;
     try {
@@ -454,39 +332,20 @@ if (misionCompletada.isEmpty()) {
 
     if (!cumplida) {
 
-
-      Insignia insignia = buscarInsignia(mision.insigniaID()).orElseThrow();
+      Insignia insignia = insigniasService.buscarInsigniaModel(mision.insigniaID()).orElseThrow();
 
       quitarInsigniaDonador(donadorID, insigniaMapper.toDTO(insignia));
 
       fachadaDonadoresYEntidades.modifcarCategoria(donadorID, mision.categoriaInicio().name());
 
-      misionDeDonadorRepository
-          .findByDonadorId(donadorID)
-          .ifPresent(
-              misionDeDonador -> {
-                misionDeDonador.setMisionActualId(null);
-                misionDeDonadorRepository.save(misionDeDonador);
-              });
+      misionesService.limpiarMisionActual(donadorID);
 
       // Avisamos a DyE que el donador ya no tiene misión en curso (misionActualID = null),
       // para que su estado quede sincronizado con el reset local.
       notificarMisionADonadoresYEntidades(donadorID, null);
     }
-      
   }
 
-
-
-
-
-private Optional<MisionDTO> buscarMisionPorCategoriaActual(String categoriaActual) {
-    return misionRepository.findAll().stream()
-        .map(misionMapper::toDTO)
-        .filter(m -> m.categoriaFin() != null
-            && m.categoriaFin().name().equalsIgnoreCase(categoriaActual))
-        .findFirst();
-}
   @Override
   public void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones) {
     this.fachadaDonaciones = fachadaDonaciones;
@@ -497,8 +356,7 @@ private Optional<MisionDTO> buscarMisionPorCategoriaActual(String categoriaActua
     this.fachadaDonadoresYEntidades = fachadaDonadoresYEntidades;
   }
 
-  public void setDonadoresYEntidadesClient(
-      ar.edu.utn.dds.k3003.componentes.DonadoresYEntidadesClient donadoresYEntidadesClient) {
+  public void setDonadoresYEntidadesClient(DonadoresYEntidadesClient donadoresYEntidadesClient) {
     this.donadoresYEntidadesClient = donadoresYEntidadesClient;
   }
 
@@ -572,8 +430,8 @@ private Optional<MisionDTO> buscarMisionPorCategoriaActual(String categoriaActua
         }
         return true;
       case REVOLUCION_DONADORA:
-        int cantidadDonacionesMas50=0;
-        for(DonacionDTO donacion : donaciones) {
+        int cantidadDonacionesMas50 = 0;
+        for (DonacionDTO donacion : donaciones) {
           if (donacion.cantidad() != null && donacion.cantidad() > 50) {
             cantidadDonacionesMas50++;
           }
@@ -584,19 +442,18 @@ private Optional<MisionDTO> buscarMisionPorCategoriaActual(String categoriaActua
     }
   }
 
-public void revisarEstadoMisiones(){
-  
-    List<MisionDeDonador> misionesDeDonadores = misionDeDonadorRepository.findAll();
+  // Dispara el Cron: por cada donador con MisionDeDonador registrada, primero revisa si perdió
+  // el progreso de una misión ya completada, y después procesa la misión en curso (si tiene).
+  public void revisarEstadoMisiones() {
+    List<MisionDeDonador> misionesDeDonadores = misionesService.findAll();
     for (MisionDeDonador misionDeDonador : misionesDeDonadores) {
-        String donadorID = misionDeDonador.getDonadorId();
-        try { 
-            revisarMisionAnterior(donadorID);
-            procesarDonador(donadorID);
-        } catch (Exception e) {
-            log.warn("Error al procesar el donador {}: {}", donadorID, e.getMessage());
-        }
+      String donadorID = misionDeDonador.getDonadorId();
+      try {
+        revisarMisionAnterior(donadorID);
+        procesarDonador(donadorID);
+      } catch (Exception e) {
+        log.warn("Error al procesar el donador {}: {}", donadorID, e.getMessage());
+      }
     }
+  }
 }
-  
-}
-
