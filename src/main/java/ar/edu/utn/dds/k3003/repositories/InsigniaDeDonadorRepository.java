@@ -1,6 +1,7 @@
 package ar.edu.utn.dds.k3003.repositories;
 
 import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -12,4 +13,6 @@ public interface InsigniaDeDonadorRepository {
   InsigniasDeDonador save(InsigniasDeDonador insigniasDeDonador);
 
   Optional<InsigniasDeDonador> findByDonadorId(String donadorId);
+
+  List<InsigniasDeDonador> findAll();
 }

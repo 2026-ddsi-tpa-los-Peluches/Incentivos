@@ -18,6 +18,7 @@ import ar.edu.utn.dds.k3003.repositories.*;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,6 +29,8 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.CategoriaDonadorEnum;
 
 @Service
 public class Fachada implements FachadaIncentivos {
@@ -157,6 +160,8 @@ public class Fachada implements FachadaIncentivos {
 
     return insigniaMapper.toDTO(guardada);
   }
+ 
+
 
   @Override
   public MisionDTO agregarMision(MisionDTO misionDTO) {
@@ -275,6 +280,8 @@ public class Fachada implements FachadaIncentivos {
         InsigniasDeDonadorRepository.findByDonadorId(donadorID)
             .orElseGet(() -> InsigniasDeDonadorRepository.save(new InsigniasDeDonador(donadorID)));
 
+    
+
     donador.agregarInsignia(insigniaDTO.id());
 
     InsigniasDeDonadorRepository.save(donador);
@@ -283,6 +290,37 @@ public class Fachada implements FachadaIncentivos {
     // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
     notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
   }
+
+   public void quitarInsigniaDonador(String donadorID, InsigniaDTO insigniaDTO ){
+      try {
+      fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    if (insigniaDTO == null) {
+      throw new IllegalArgumentException("Insignia nula");
+    }
+
+    buscarInsignia(insigniaDTO.id())
+        .orElseThrow(() -> new NoSuchElementException("No existe la insignia"));
+
+    InsigniasDeDonador donador =
+        InsigniasDeDonadorRepository.findByDonadorId(donadorID)
+        //No deberia llegar a este caso nunca
+            .orElseGet(() -> InsigniasDeDonadorRepository.save(new InsigniasDeDonador(donadorID)));
+
+    
+
+    donador.quitarInsignia(insigniaDTO.id());
+
+    InsigniasDeDonadorRepository.save(donador);
+
+    // Push (best-effort) a Donadores y Entidades: avisamos la insignia ganada para sus
+    // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
+    notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
+    }
+
 
   private void notificarInsigniaADonadoresYEntidades(String donadorID, String insigniaID) {
     if (donadoresYEntidadesClient == null) {
@@ -346,10 +384,10 @@ if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
           donadorID, e.getMessage());
       return;
     }
-
+    CategoriaDonadorEnum estadoInicialPreMision = mision.categoriaInicio();
     Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones);
 
-    if (cumplida) {
+    if (!cumplida) {
 
       misionesCompletadas.increment();
 
@@ -371,8 +409,84 @@ if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
       // para que su estado quede sincronizado con el reset local.
       notificarMisionADonadoresYEntidades(donadorID, null);
     }
+      //func
   }
 
+
+
+  public void revisarMisionAnterior(String donadorID) {
+    try {
+    fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    
+
+    if (fachadaDonaciones == null) {
+      return;
+    }
+    
+    var donador = fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+    String categoriaActual = donador.categoria();
+    Optional<MisionDTO> misionCompletada = buscarMisionPorCategoriaActual(donador.categoria());
+if (misionCompletada.isEmpty()) {
+    return; // categoría base o sin misión asociada -> nada que regresar
+}
+    MisionDTO mision = misionCompletada.get();
+
+
+
+
+
+    List<DonacionDTO> donaciones;
+    try {
+      donaciones =
+          fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
+    } catch (RuntimeException e) {
+      // Si Donaciones está caído/no responde, no podemos evaluar la misión:
+      // logueamos y salimos sin romper el procesamiento del donador.
+      log.warn("No se pudo obtener el historial de donaciones del donador {}: {}",
+          donadorID, e.getMessage());
+      return;
+    }
+
+    Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones);
+
+    if (!cumplida) {
+
+
+      Insignia insignia = buscarInsignia(mision.insigniaID()).orElseThrow();
+
+      quitarInsigniaDonador(donadorID, insigniaMapper.toDTO(insignia));
+
+      fachadaDonadoresYEntidades.modifcarCategoria(donadorID, mision.categoriaInicio().name());
+
+      misionDeDonadorRepository
+          .findByDonadorId(donadorID)
+          .ifPresent(
+              misionDeDonador -> {
+                misionDeDonador.setMisionActualId(null);
+                misionDeDonadorRepository.save(misionDeDonador);
+              });
+
+      // Avisamos a DyE que el donador ya no tiene misión en curso (misionActualID = null),
+      // para que su estado quede sincronizado con el reset local.
+      notificarMisionADonadoresYEntidades(donadorID, null);
+    }
+      
+  }
+
+
+
+
+
+private Optional<MisionDTO> buscarMisionPorCategoriaActual(String categoriaActual) {
+    return misionRepository.findAll().stream()
+        .map(misionMapper::toDTO)
+        .filter(m -> m.categoriaFin() != null
+            && m.categoriaFin().name().equalsIgnoreCase(categoriaActual))
+        .findFirst();
+}
   @Override
   public void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones) {
     this.fachadaDonaciones = fachadaDonaciones;
@@ -469,4 +583,20 @@ if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
         return false;
     }
   }
+
+public void revisarEstadoMisiones(){
+  
+    List<MisionDeDonador> misionesDeDonadores = misionDeDonadorRepository.findAll();
+    for (MisionDeDonador misionDeDonador : misionesDeDonadores) {
+        String donadorID = misionDeDonador.getDonadorId();
+        try { 
+            revisarMisionAnterior(donadorID);
+            procesarDonador(donadorID);
+        } catch (Exception e) {
+            log.warn("Error al procesar el donador {}: {}", donadorID, e.getMessage());
+        }
+    }
 }
+  
+}
+

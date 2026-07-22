@@ -46,4 +46,8 @@ public class InsigniasDeDonador {
       insigniasIds.add(insigniaId);
     }
   }
+
+  public void quitarInsignia(String insigniaId) {
+    insigniasIds.remove(insigniaId);
+}
 }
