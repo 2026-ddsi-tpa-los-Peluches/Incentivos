@@ -209,9 +209,9 @@ public class Fachada implements FachadaIncentivos {
 
     insigniasService.quitarInsigniaDeDonador(donadorID, insigniaDTO.id());
 
-    // Push (best-effort) a Donadores y Entidades: avisamos la baja de la insignia para sus
-    // estadísticas. Si DyE está caído, la baja local ya quedó persistida y no la revertimos.
-    notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
+    // Push (best-effort) a Donadores y Entidades: avisamos la baja de la insignia (DELETE) para
+    // sus estadísticas. Si DyE está caído, la baja local ya quedó persistida y no la revertimos.
+    notificarQuitarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
   }
 
   private void notificarInsigniaADonadoresYEntidades(String donadorID, String insigniaID) {
@@ -222,6 +222,18 @@ public class Fachada implements FachadaIncentivos {
       donadoresYEntidadesClient.asignarInsigniaADonador(donadorID, insigniaID);
     } catch (RuntimeException e) {
       log.warn("No se pudo notificar la insignia {} del donador {} a Donadores y Entidades: {}",
+          insigniaID, donadorID, e.getMessage());
+    }
+  }
+
+  private void notificarQuitarInsigniaADonadoresYEntidades(String donadorID, String insigniaID) {
+    if (donadoresYEntidadesClient == null) {
+      return;
+    }
+    try {
+      donadoresYEntidadesClient.quitarInsigniaADonador(donadorID, insigniaID);
+    } catch (RuntimeException e) {
+      log.warn("No se pudo notificar la baja de la insignia {} del donador {} a Donadores y Entidades: {}",
           insigniaID, donadorID, e.getMessage());
     }
   }

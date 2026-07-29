@@ -38,6 +38,20 @@ public class DonadoresYEntidadesClient {
         }
     }
 
+    // DELETE /insigniasDonador/{donadorID}/{insigniaID}  -> saca una insignia de la LISTA del donador en DyE.
+    public void quitarInsigniaADonador(String donadorId, String insigniaId) {
+        if (isMock) return;
+
+        try {
+            String url = baseUrl + "/insigniasDonador/" + donadorId + "/" + insigniaId;
+            restTemplate.delete(url);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Error al quitar la insignia " + insigniaId + " del donador " + donadorId
+                            + " en Donadores y Entidades", e);
+        }
+    }
+
     // PATCH /donadores/{donadorID}/misionActual  -> setea (reemplaza) el id de misión actual
     // del donador en DyE. Body: { "misionActualID": "<id>" }
     // Admite misionActualID == null para limpiar la misión en curso cuando el donador la completó.
