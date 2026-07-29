@@ -59,6 +59,11 @@
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-datadog</artifactId>
     </dependency>
+    <!-- Prometheus: expone las métricas en /actuator/prometheus para que Prometheus las scrapee -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
     <!-- Existing Dependencies -->
     <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>

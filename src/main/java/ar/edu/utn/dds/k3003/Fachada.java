@@ -28,9 +28,7 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-// Orquestador del módulo Incentivos: valida contra los otros módulos (Donaciones, Donadores y
-// Entidades), decide cuándo una misión se completa/pierde/cancela, y notifica. El CRUD de
-// insignias y misiones (y sus repos) vive en InsigniasService/MisionesService.
+// Orquestador de Incentivos. El CRUD de insignias y misiones vive en InsigniasService/MisionesService.
 @Service
 public class Fachada implements FachadaIncentivos {
 
@@ -46,9 +44,7 @@ public class Fachada implements FachadaIncentivos {
   private FachadaDonaciones fachadaDonaciones;
   private FachadaDonadoresYEntidades fachadaDonadoresYEntidades;
 
-  // Cliente REST para notificar (push) a Donadores y Entidades cuando un donador
-  // gana/pierde una insignia o se le asigna/cancela una misión. Se cablea en IntegracionFachadas.
-  // Queda null en los tests (que instancian la Fachada por reflection): el push se omite.
+  // Cliente REST para notificar a DyE. Queda null en los tests (se omite el push).
   private DonadoresYEntidadesClient donadoresYEntidadesClient;
 
   @Autowired
@@ -140,14 +136,11 @@ public class Fachada implements FachadaIncentivos {
 
     misionesService.agregarMisionADonador(donadorID, misionDTO.id());
 
-    // Push (best-effort) a Donadores y Entidades: avisamos la misión asignada para sus
-    // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
+    // Avisamos la misión asignada a DyE (best-effort).
     notificarMisionADonadoresYEntidades(donadorID, misionDTO.id());
   }
 
-  // Cancela la misión en curso del donador (sin otorgar insignia ni cambiar de categoría:
-  // no es "completarla" ni "perder el progreso", es sacársela sin más, p. ej. una corrección
-  // del admin). El historial en misionesIds se conserva.
+  // Cancela la misión en curso del donador (sin tocar insignia ni categoría).
   public void quitarMisionDeDonador(String donadorID) {
     try {
       fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
@@ -169,10 +162,7 @@ public class Fachada implements FachadaIncentivos {
     notificarMisionADonadoresYEntidades(donadorID, null);
   }
 
-  // Categoría actual del donador (consultando a DyE). La usa el controller para validar, antes
-  // de asignar una misión, que la categoría inicial de la misión coincida con la del donador.
-  // No se valida dentro de asignarMisionADonador porque un test de cátedra asigna a propósito
-  // una misión con categoría no coincidente y espera que la fachada no falle.
+  // Categoría actual del donador. La usa el controller para validar la asignación de una misión.
   public String categoriaActualDeDonador(String donadorID) {
     return fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID).categoria();
   }
@@ -191,8 +181,7 @@ public class Fachada implements FachadaIncentivos {
 
     insigniasService.agregarInsigniaADonador(donadorID, insigniaDTO.id());
 
-    // Push (best-effort) a Donadores y Entidades: avisamos la insignia ganada para sus
-    // estadísticas. Si DyE está caído, la asignación local ya quedó persistida y no la revertimos.
+    // Avisamos la insignia ganada a DyE (best-effort).
     notificarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
   }
 
@@ -209,8 +198,7 @@ public class Fachada implements FachadaIncentivos {
 
     insigniasService.quitarInsigniaDeDonador(donadorID, insigniaDTO.id());
 
-    // Push (best-effort) a Donadores y Entidades: avisamos la baja de la insignia (DELETE) para
-    // sus estadísticas. Si DyE está caído, la baja local ya quedó persistida y no la revertimos.
+    // Avisamos la baja de la insignia a DyE (best-effort).
     notificarQuitarInsigniaADonadoresYEntidades(donadorID, insigniaDTO.id());
   }
 
@@ -267,9 +255,7 @@ public class Fachada implements FachadaIncentivos {
     var donador = fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
     String categoriaActual = donador.categoria();
 
-    // Comparamos desde el lado de la misión para no romper con NPE si el donador no tiene categoría.
-    // equalsIgnoreCase porque DyE devuelve la categoría con otra capitalización ("Ocasional")
-    // que no coincide literal con el name() del enum ("OCASIONAL").
+    // equalsIgnoreCase porque DyE devuelve la categoría con otra capitalización que el enum.
     if (!mision.categoriaInicio().name().equalsIgnoreCase(categoriaActual)) {
       throw new IllegalStateException("El donador no cumple con la categoría inicial de la misión");
     }
@@ -279,8 +265,7 @@ public class Fachada implements FachadaIncentivos {
       donaciones =
           fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
     } catch (RuntimeException e) {
-      // Si Donaciones está caído/no responde, no podemos evaluar la misión:
-      // logueamos y salimos sin romper el procesamiento del donador.
+      // Si Donaciones no responde, salimos sin romper el procesamiento.
       log.warn("No se pudo obtener el historial de donaciones del donador {}: {}",
           donadorID, e.getMessage());
       return;
@@ -300,15 +285,13 @@ public class Fachada implements FachadaIncentivos {
 
       misionesService.limpiarMisionActual(donadorID);
 
-      // Avisamos a DyE que el donador ya no tiene misión en curso (misionActualID = null),
-      // para que su estado quede sincronizado con el reset local.
+      // Avisamos a DyE que el donador ya no tiene misión en curso.
       notificarMisionADonadoresYEntidades(donadorID, null);
     }
   }
 
-  // Espejo de procesarDonador: revisa la misión que hizo subir al donador a su categoría
-  // ACTUAL (no la que tiene en curso). Si al recalcularla hoy ya no se cumple (p. ej. bajaron
-  // las donaciones ACEPTADA por una queja), revierte insignia y categoría.
+  // Regresión: revisa la misión que subió al donador a su categoría actual y, si ya no se cumple,
+  // le saca la insignia y lo baja de categoría.
   public void revisarMisionAnterior(String donadorID) {
     try {
       fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
@@ -333,8 +316,7 @@ public class Fachada implements FachadaIncentivos {
       donaciones =
           fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
     } catch (RuntimeException e) {
-      // Si Donaciones está caído/no responde, no podemos evaluar la misión:
-      // logueamos y salimos sin romper el procesamiento del donador.
+      // Si Donaciones no responde, salimos sin romper el procesamiento.
       log.warn("No se pudo obtener el historial de donaciones del donador {}: {}",
           donadorID, e.getMessage());
       return;
@@ -352,8 +334,7 @@ public class Fachada implements FachadaIncentivos {
 
       misionesService.limpiarMisionActual(donadorID);
 
-      // Avisamos a DyE que el donador ya no tiene misión en curso (misionActualID = null),
-      // para que su estado quede sincronizado con el reset local.
+      // Avisamos a DyE que el donador ya no tiene misión en curso.
       notificarMisionADonadoresYEntidades(donadorID, null);
     }
   }
@@ -372,9 +353,7 @@ public class Fachada implements FachadaIncentivos {
     this.donadoresYEntidadesClient = donadoresYEntidadesClient;
   }
 
-  // Resuelve la categoría (categoriaID) de un producto contra el módulo de Donaciones.
-  // Devuelve null si no se puede resolver (producto null, Donaciones caído o sin fachada),
-  // de modo que ese producto simplemente no sume una categoría.
+  // Categoría de un producto (contra Donaciones). Null si no se puede resolver.
   private String obtenerCategoriaDeProducto(String productoID) {
     if (productoID == null || fachadaDonaciones == null) {
       return null;
@@ -393,10 +372,8 @@ public class Fachada implements FachadaIncentivos {
 
     switch (mision.tipo()) {
       case COMPLETITUD:
-        // La misión consiste en realizar donaciones a 3 categorías distintas de productos.
-        // El DonacionDTO solo trae productoID, así que primero juntamos los productos distintos
-        // (para no llamar a Donaciones más de una vez por el mismo producto) y recién ahí
-        // resolvemos cada uno contra Donaciones (GET /productos/{id}) para contar categorías.
+        // Donaciones a 3 categorías distintas. El DTO solo trae productoID, así que resolvemos
+        // la categoría de cada producto (distinto) contra Donaciones.
         Set<String> productosDistintos = new HashSet<>();
         for (DonacionDTO donacion : donaciones) {
           if (donacion.productoID() != null) {
@@ -454,15 +431,14 @@ public class Fachada implements FachadaIncentivos {
     }
   }
 
-  // Dispara el Cron: por cada donador con MisionDeDonador registrada, primero revisa si perdió
-  // el progreso de una misión ya completada, y después procesa la misión en curso (si tiene).
+  // Lo llama el Cron para cada donador.
   public void revisarEstadoMisiones() {
     List<MisionDeDonador> misionesDeDonadores = misionesService.findAll();
     for (MisionDeDonador misionDeDonador : misionesDeDonadores) {
       String donadorID = misionDeDonador.getDonadorId();
       try {
-        revisarMisionAnterior(donadorID);
-        procesarDonador(donadorID);
+        revisarMisionAnterior(donadorID); // chequea la misión anterior
+        procesarDonador(donadorID);       // chequea la misión actual
       } catch (Exception e) {
         log.warn("Error al procesar el donador {}: {}", donadorID, e.getMessage());
       }
