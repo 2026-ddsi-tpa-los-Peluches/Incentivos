@@ -76,6 +76,14 @@ public class InsigniasService {
     return insigniaMapper.toDTO(guardada);
   }
 
+  // Borra una insignia del catálogo. No valida si está referenciada por alguna misión o
+  // en la lista de algún donador (esas relaciones son ids sueltos, sin FK) — queda dangling.
+  public void eliminarInsignia(String id) {
+    buscarInsigniaModel(id)
+        .orElseThrow(() -> new NoSuchElementException("No se encontró la insignia con ID: " + id));
+    insigniaRepository.deleteById(Integer.valueOf(id));
+  }
+
   public List<InsigniaDTO> obtenerInsigniasPorIds(List<String> ids) {
     return ids.stream()
         .map(id -> buscarInsigniaModel(id).orElseThrow(NoSuchElementException::new))

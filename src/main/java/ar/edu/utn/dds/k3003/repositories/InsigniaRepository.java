@@ -15,4 +15,6 @@ public interface InsigniaRepository {
   Insignia save(Insignia insignia);
 
   List<Insignia> findAll();
+
+  void deleteById(Integer id);
 }

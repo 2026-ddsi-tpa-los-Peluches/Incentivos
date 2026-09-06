@@ -14,8 +14,12 @@ public class Cron {
         this.fachada = fachada;
     }
 
-    // Cada 2 minutos revisa las misiones de todos los donadores (la anterior y la actual).
-    @Scheduled(fixedRate = 120000)
+    @Scheduled(fixedRate = 30000)
+    public void mantenerServicios() {
+
+    }
+    // Cada minuto revisa las misiones de todos los donadores (la anterior y la actual).
+    @Scheduled(fixedRate = 60000)
     public void revisarEstadoMisiones() {
         fachada.revisarEstadoMisiones();
     }

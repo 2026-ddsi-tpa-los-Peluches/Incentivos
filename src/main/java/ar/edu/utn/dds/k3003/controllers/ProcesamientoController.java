@@ -10,6 +10,7 @@ import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/procesamiento/{donadorID}")
+
 public class  ProcesamientoController {
 
     private Fachada fachada;
@@ -33,4 +34,7 @@ public class  ProcesamientoController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    @RequestMapping(method = RequestMethod.POST)
+    public ResponseEntity<Void> mantenerServicio() {}
 }

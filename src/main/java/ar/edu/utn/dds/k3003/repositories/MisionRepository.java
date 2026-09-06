@@ -15,4 +15,6 @@ public interface MisionRepository {
   Mision save(Mision mision);
 
   List<Mision> findAll();
+
+  void deleteById(Integer id);
 }

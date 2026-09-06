@@ -75,6 +75,14 @@ public class MisionesService {
     return misionMapper.toDTO(guardada);
   }
 
+  // Borra una misión del catálogo. No valida si está referenciada como misión en curso o
+  // histórica de algún donador (esas relaciones son ids sueltos, sin FK) — queda dangling.
+  public void eliminarMision(String id) {
+    buscarMisionModel(id)
+        .orElseThrow(() -> new NoSuchElementException("No se encontró la misión con ID: " + id));
+    misionRepository.deleteById(Integer.valueOf(id));
+  }
+
   // La usa revisarMisionAnterior para encontrar qué misión fue la que subió al donador
   // a su categoría actual.
   public Optional<MisionDTO> buscarMisionPorCategoriaActual(String categoriaActual) {

@@ -74,6 +74,14 @@ public class Fachada implements FachadaIncentivos {
     return misionesService.getAllMisiones();
   }
 
+  public void eliminarInsignia(String id) {
+    insigniasService.eliminarInsignia(id);
+  }
+
+  public void eliminarMision(String id) {
+    misionesService.eliminarMision(id);
+  }
+
   @Override
   public InsigniaDTO agregarInsignia(InsigniaDTO insigniaDTO) {
     return insigniasService.agregarInsignia(insigniaDTO);

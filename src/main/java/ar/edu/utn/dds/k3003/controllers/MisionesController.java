@@ -50,5 +50,16 @@ public class MisionesController {
         }
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMision(@PathVariable String id) {
+        try {
+            fachada.eliminarMision(id);
+            return ResponseEntity.noContent().build();
+        }
+        catch (NoSuchElementException e){
+            return ResponseEntity.notFound().build();
+        }
+    }
+
 }
 

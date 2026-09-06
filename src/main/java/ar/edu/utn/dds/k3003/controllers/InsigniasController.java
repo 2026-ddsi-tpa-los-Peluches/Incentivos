@@ -51,4 +51,15 @@ public class InsigniasController {
         }
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteInsignia(@PathVariable String id) {
+        try {
+            fachada.eliminarInsignia(id);
+            return ResponseEntity.noContent().build();
+        }
+        catch (NoSuchElementException e){
+            return ResponseEntity.notFound().build();
+        }
+    }
+
 }
