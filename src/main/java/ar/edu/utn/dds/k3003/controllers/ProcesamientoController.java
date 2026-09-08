@@ -34,7 +34,4 @@ public class  ProcesamientoController {
             return ResponseEntity.badRequest().build();
         }
     }
-
-    @RequestMapping(method = RequestMethod.POST)
-    public ResponseEntity<Void> mantenerServicio() {}
 }
