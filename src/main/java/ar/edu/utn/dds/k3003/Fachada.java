@@ -9,6 +9,7 @@ import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
 import ar.edu.utn.dds.k3003.componentes.DonadoresYEntidadesClient;
+import ar.edu.utn.dds.k3003.config.InstanceInfo;
 import ar.edu.utn.dds.k3003.mappers.InsigniaMapper;
 import ar.edu.utn.dds.k3003.model.Insignia;
 import ar.edu.utn.dds.k3003.model.MisionDeDonador;
@@ -24,7 +25,9 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -47,11 +50,18 @@ public class Fachada implements FachadaIncentivos {
   // Cliente REST para notificar a DyE. Queda null en los tests (se omite el push).
   private DonadoresYEntidadesClient donadoresYEntidadesClient;
 
+  // Identifica esta instancia en los logs del Cron (ver revisarEstadoMisiones).
+  private final InstanceInfo instanceInfo;
+
   @Autowired
   public Fachada(
-      InsigniasService insigniasService, MisionesService misionesService, MeterRegistry meterRegistry) {
+      InsigniasService insigniasService,
+      MisionesService misionesService,
+      MeterRegistry meterRegistry,
+      InstanceInfo instanceInfo) {
     this.insigniasService = insigniasService;
     this.misionesService = misionesService;
+    this.instanceInfo = instanceInfo;
     this.misionesCompletadas =
         Counter.builder("incentivos.misiones.completadas")
             .description("Cantidad de misiones completadas por donadores")
@@ -217,8 +227,8 @@ public class Fachada implements FachadaIncentivos {
     try {
       donadoresYEntidadesClient.asignarInsigniaADonador(donadorID, insigniaID);
     } catch (RuntimeException e) {
-      log.warn("No se pudo notificar la insignia {} del donador {} a Donadores y Entidades: {}",
-          insigniaID, donadorID, e.getMessage());
+      log.warn("No se pudo notificar la insignia {} del donador {} a Donadores y Entidades",
+          insigniaID, donadorID, e);
     }
   }
 
@@ -229,8 +239,8 @@ public class Fachada implements FachadaIncentivos {
     try {
       donadoresYEntidadesClient.quitarInsigniaADonador(donadorID, insigniaID);
     } catch (RuntimeException e) {
-      log.warn("No se pudo notificar la baja de la insignia {} del donador {} a Donadores y Entidades: {}",
-          insigniaID, donadorID, e.getMessage());
+      log.warn("No se pudo notificar la baja de la insignia {} del donador {} a Donadores y Entidades",
+          insigniaID, donadorID, e);
     }
   }
 
@@ -241,8 +251,8 @@ public class Fachada implements FachadaIncentivos {
     try {
       donadoresYEntidadesClient.asignarMisionADonador(donadorID, misionID);
     } catch (RuntimeException e) {
-      log.warn("No se pudo notificar la misión {} del donador {} a Donadores y Entidades: {}",
-          misionID, donadorID, e.getMessage());
+      log.warn("No se pudo notificar la misión {} del donador {} a Donadores y Entidades",
+          misionID, donadorID, e);
     }
   }
 
@@ -274,8 +284,7 @@ public class Fachada implements FachadaIncentivos {
           fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
     } catch (RuntimeException e) {
       // Si Donaciones no responde, salimos sin romper el procesamiento.
-      log.warn("No se pudo obtener el historial de donaciones del donador {}: {}",
-          donadorID, e.getMessage());
+      log.warn("No se pudo obtener el historial de donaciones del donador {}", donadorID, e);
       return;
     }
 
@@ -325,8 +334,7 @@ public class Fachada implements FachadaIncentivos {
           fachadaDonaciones.buscarPorDonadorYFechaInicio(donadorID, LocalDate.of(1900, 1, 1));
     } catch (RuntimeException e) {
       // Si Donaciones no responde, salimos sin romper el procesamiento.
-      log.warn("No se pudo obtener el historial de donaciones del donador {}: {}",
-          donadorID, e.getMessage());
+      log.warn("No se pudo obtener el historial de donaciones del donador {}", donadorID, e);
       return;
     }
 
@@ -370,7 +378,7 @@ public class Fachada implements FachadaIncentivos {
       var producto = fachadaDonaciones.buscarProductoPorID(productoID);
       return producto == null ? null : producto.categoriaID();
     } catch (RuntimeException e) {
-      log.warn("No se pudo resolver la categoría del producto {}: {}", productoID, e.getMessage());
+      log.warn("No se pudo resolver la categoría del producto {}", productoID, e);
       return null;
     }
   }
@@ -444,11 +452,18 @@ public class Fachada implements FachadaIncentivos {
     List<MisionDeDonador> misionesDeDonadores = misionesService.findAll();
     for (MisionDeDonador misionDeDonador : misionesDeDonadores) {
       String donadorID = misionDeDonador.getDonadorId();
+      // El Cron no pasa por RequestLoggingFilter (no hay request HTTP), así que cargamos el MDC
+      // a mano: un traceId por donador, que viaja a DyE y Donaciones en las llamadas de abajo.
+      MDC.put("traceId", UUID.randomUUID().toString().substring(0, 8));
+      MDC.put("instanceId", instanceInfo.getInstanceId());
       try {
+        log.info("cron: revisando misiones del donador {}", donadorID);
         revisarMisionAnterior(donadorID); // chequea la misión anterior
         procesarDonador(donadorID);       // chequea la misión actual
       } catch (Exception e) {
-        log.warn("Error al procesar el donador {}: {}", donadorID, e.getMessage());
+        log.warn("Error al procesar el donador {}", donadorID, e);
+      } finally {
+        MDC.clear();
       }
     }
   }

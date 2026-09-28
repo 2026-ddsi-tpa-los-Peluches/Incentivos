@@ -3,8 +3,11 @@ package ar.edu.utn.dds.k3003.componentes;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import ar.edu.utn.dds.k3003.config.RequestLoggingFilter;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -34,12 +37,25 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
         this.baseUrl = baseUrl;
     }
 
+    // Headers que van en cada llamada a DyE: reenvia el traceId del request actual
+    // (lo cargo RequestLoggingFilter en el MDC) para que DyE loguee con el mismo trace.
+    private HttpHeaders headersConTrace() {
+        HttpHeaders headers = new HttpHeaders();
+        String traceId = MDC.get("traceId");
+        if (traceId != null) {
+            headers.set(RequestLoggingFilter.TRACE_ID_HEADER, traceId);
+        }
+        return headers;
+    }
+
     // GET /donadores/{id}  -> trae el donador. Si no existe, lanza NoSuchElementException.
     @Override
     public DonadorDTO buscarDonadorPorID(String donadorID) throws NoSuchElementException {
         try {
             String url = baseUrl + "/donadores/" + donadorID;
-            DonadorDTO donador = restTemplate.getForObject(url, DonadorDTO.class);
+            DonadorDTO donador = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headersConTrace()), DonadorDTO.class)
+                    .getBody();
             if (donador == null) {
                 throw new NoSuchElementException("No existe el donador " + donadorID);
             }
@@ -61,7 +77,8 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
             throws NoSuchElementException {
         try {
             String url = baseUrl + "/donadores/" + donadorID + "/categoria";
-            HttpEntity<Map<String, String>> request = new HttpEntity<>(Map.of("categoria", categoria));
+            HttpEntity<Map<String, String>> request =
+                    new HttpEntity<>(Map.of("categoria", categoria), headersConTrace());
             ResponseEntity<DonadorDTO> resp =
                     restTemplate.exchange(url, HttpMethod.PATCH, request, DonadorDTO.class);
             return resp.getBody();
@@ -135,7 +152,9 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
     public DonadorStatsDTO estadisticasDonador(String donadorID) {
         try {
             String url = baseUrl + "/donadores/" + donadorID + "/estadisticas";
-            DonadorStatsDTO stats = restTemplate.getForObject(url, DonadorStatsDTO.class);
+            DonadorStatsDTO stats = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headersConTrace()), DonadorStatsDTO.class)
+                    .getBody();
             if (stats == null) {
                 throw new NoSuchElementException("No hay estadísticas para el donador " + donadorID);
             }

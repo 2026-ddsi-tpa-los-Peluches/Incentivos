@@ -1,7 +1,12 @@
 package ar.edu.utn.dds.k3003.componentes;
 
+import ar.edu.utn.dds.k3003.config.RequestLoggingFilter;
 import ar.edu.utn.dds.k3003.dtos.InsigniaIDRequest;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -23,6 +28,17 @@ public class DonadoresYEntidadesClient {
         this.isMock = "http://localhost:8082".equals(baseUrl);
     }
 
+    // Headers que van en cada llamada a DyE: reenvia el traceId del request actual
+    // (lo cargo RequestLoggingFilter en el MDC) para que DyE loguee con el mismo trace.
+    private HttpHeaders headersConTrace() {
+        HttpHeaders headers = new HttpHeaders();
+        String traceId = MDC.get("traceId");
+        if (traceId != null) {
+            headers.set(RequestLoggingFilter.TRACE_ID_HEADER, traceId);
+        }
+        return headers;
+    }
+
     // POST /insigniasDonador/{donadorID}  -> agrega una insignia a la LISTA del donador en DyE.
     // Body: { "insigniaID": "<id>" }
     public void asignarInsigniaADonador(String donadorId, String insigniaId) {
@@ -30,7 +46,8 @@ public class DonadoresYEntidadesClient {
 
         try {
             String url = baseUrl + "/insigniasDonador/" + donadorId;
-            restTemplate.postForObject(url, new InsigniaIDRequest(insigniaId), Void.class);
+            restTemplate.postForObject(
+                    url, new HttpEntity<>(new InsigniaIDRequest(insigniaId), headersConTrace()), Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Error al asignar la insignia " + insigniaId + " al donador " + donadorId
@@ -44,7 +61,8 @@ public class DonadoresYEntidadesClient {
 
         try {
             String url = baseUrl + "/insigniasDonador/" + donadorId + "/" + insigniaId;
-            restTemplate.delete(url);
+            // exchange en vez de delete(url), porque delete no permite mandar headers.
+            restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headersConTrace()), Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Error al quitar la insignia " + insigniaId + " del donador " + donadorId
@@ -63,7 +81,11 @@ public class DonadoresYEntidadesClient {
             // DyE espera el body { "misionActualID": "<id>" } (coincide con el nombre del path).
             // Usamos singletonMap (y no Map.of) porque Map.of no admite valores null.
             restTemplate.patchForObject(
-                url, java.util.Collections.singletonMap("misionActualID", misionActualID), Void.class);
+                url,
+                new HttpEntity<>(
+                    java.util.Collections.singletonMap("misionActualID", misionActualID),
+                    headersConTrace()),
+                Void.class);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Error al asignar la misión " + misionActualID + " al donador " + donadorId

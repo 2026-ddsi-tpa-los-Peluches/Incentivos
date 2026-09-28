@@ -4,7 +4,12 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donaciones.*;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaLogistica;
+import ar.edu.utn.dds.k3003.config.RequestLoggingFilter;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -33,6 +38,17 @@ public class DonacionesProxy implements FachadaDonaciones {
         this.isMock = (baseUrl == null || baseUrl.isBlank());
     }
 
+    // Headers que van en cada llamada a Donaciones: reenvia el traceId del request actual
+    // (lo cargo RequestLoggingFilter en el MDC) para que Donaciones loguee con el mismo trace.
+    private HttpHeaders headersConTrace() {
+        HttpHeaders headers = new HttpHeaders();
+        String traceId = MDC.get("traceId");
+        if (traceId != null) {
+            headers.set(RequestLoggingFilter.TRACE_ID_HEADER, traceId);
+        }
+        return headers;
+    }
+
     // GET /donaciones/search?donadorID={id}&fechaInicio={fecha} -> donaciones del donador desde esa fecha.
     @Override
     public List<DonacionDTO> buscarPorDonadorYFechaInicio(String donadorID, LocalDate fecha)
@@ -41,7 +57,9 @@ public class DonacionesProxy implements FachadaDonaciones {
 
         try {
             String url = baseUrl + "/donaciones/search?donadorID=" + donadorID + "&fechaInicio=" + fecha;
-            DonacionDTO[] donaciones = restTemplate.getForObject(url, DonacionDTO[].class);
+            DonacionDTO[] donaciones = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headersConTrace()), DonacionDTO[].class)
+                    .getBody();
             return donaciones == null ? List.of() : Arrays.asList(donaciones);
         } catch (Exception e) {
             throw new RuntimeException(
@@ -87,7 +105,9 @@ public class DonacionesProxy implements FachadaDonaciones {
         }
         try {
             String url = baseUrl + "/productos/" + productoID;
-            ProductoDTO producto = restTemplate.getForObject(url, ProductoDTO.class);
+            ProductoDTO producto = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headersConTrace()), ProductoDTO.class)
+                    .getBody();
             if (producto == null) {
                 throw new NoSuchElementException("No existe el producto " + productoID);
             }

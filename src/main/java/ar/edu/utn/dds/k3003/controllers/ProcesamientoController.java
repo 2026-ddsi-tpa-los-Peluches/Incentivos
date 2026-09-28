@@ -13,6 +13,9 @@ import java.util.NoSuchElementException;
 
 public class  ProcesamientoController {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(ProcesamientoController.class);
+
     private Fachada fachada;
 
     public ProcesamientoController(Fachada fachada) {
@@ -28,9 +31,11 @@ public class  ProcesamientoController {
             return ResponseEntity.noContent().build();
         }
         catch (NoSuchElementException e){
+            log.warn("No se pudo procesar el donador {} (412): {}", donadorID, e.getMessage());
             return ResponseEntity.status(412).build();
         }
         catch (IllegalStateException e){
+            log.warn("No se pudo procesar el donador {} (400): {}", donadorID, e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }
