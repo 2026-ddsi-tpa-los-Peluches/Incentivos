@@ -4,6 +4,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.InsigniaDTO;
 import ar.edu.utn.dds.k3003.mappers.InsigniaMapper;
 import ar.edu.utn.dds.k3003.model.Insignia;
 import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
+import ar.edu.utn.dds.k3003.publishers.InsigniasDeDonadorPublisher;
 import ar.edu.utn.dds.k3003.repositories.InsigniaDeDonadorRepository;
 import ar.edu.utn.dds.k3003.repositories.InsigniaRepository;
 import io.micrometer.core.instrument.Counter;
@@ -24,16 +25,22 @@ public class InsigniasService {
   private final InsigniaMapper insigniaMapper = new InsigniaMapper();
   private final Counter insigniasCreadas;
 
+  InsigniasDeDonadorPublisher insigniasPublisher;
+
   public InsigniasService(
       InsigniaRepository insigniaRepository,
       InsigniaDeDonadorRepository insigniaDeDonadorRepository,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      InsigniasDeDonadorPublisher insigniasPublisher) {
     this.insigniaRepository = insigniaRepository;
     this.insigniaDeDonadorRepository = insigniaDeDonadorRepository;
     this.insigniasCreadas =
         Counter.builder("incentivos.insignias.creadas")
             .description("Cantidad de insignias creadas")
             .register(meterRegistry);
+
+    //Publisher
+    this.insigniasPublisher = insigniasPublisher;
   }
 
   // Los DTO manejan el id como String, pero las entidades lo tienen como Integer (autoincremental).
@@ -103,6 +110,9 @@ public class InsigniasService {
     donador.agregarInsignia(insigniaID);
 
     insigniaDeDonadorRepository.save(donador);
+
+    // avisar al conejo
+    insigniasPublisher.notificarInsigniaAgregada(donadorID, insigniaID);
   }
 
   public void quitarInsigniaDeDonador(String donadorID, String insigniaID) {
@@ -118,5 +128,8 @@ public class InsigniasService {
     donador.quitarInsignia(insigniaID);
 
     insigniaDeDonadorRepository.save(donador);
+
+    // avisar al conejo
+    insigniasPublisher.notificarInsigniaQuitada(donadorID, insigniaID);
   }
 }

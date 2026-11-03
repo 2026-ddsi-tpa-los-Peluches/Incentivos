@@ -29,6 +29,9 @@ public class MisionDeDonador {
   @Column(name = "mision_actual_id")
   private String misionActualId;
 
+  @Column(name = "progreso")
+  private Integer progreso;
+
   // Constructor vacío requerido por JPA
   protected MisionDeDonador() {}
 
@@ -53,5 +56,13 @@ public class MisionDeDonador {
       misionesIds.add(misionId);
     }
     this.misionActualId = misionId;
+  }
+
+  public Integer getProgreso() {
+    return progreso;
+  }
+
+  public void setProgreso(Integer progreso) {
+    this.progreso = progreso;
   }
 }
