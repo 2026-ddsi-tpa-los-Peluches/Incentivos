@@ -104,6 +104,11 @@ public class MisionesService {
     misionDeDonadorRepository.save(misionDeDonador);
   }
 
+  public void actualizarMisionADonador(MisionDeDonador misionDeDonador) {
+    misionDeDonadorRepository.save(misionDeDonador);
+  }
+
+
   // Pone la misión en curso en null sin tocar insignias ni categoría (esa decisión es de
   // Fachada, según si la misión se completó, se perdió o se canceló).
   public void limpiarMisionActual(String donadorID) {

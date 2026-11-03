@@ -5,6 +5,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donaciones.EstadoDonacionEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.DonadorStatsDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.InsigniaDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.TipoMisionEnum;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
@@ -26,10 +27,13 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import static ar.edu.utn.dds.k3003.catedra.dtos.incentivos.TipoMisionEnum.*;
 
 // Orquestador de Incentivos. El CRUD de insignias y misiones vive en InsigniasService/MisionesService.
 @Service
@@ -287,9 +291,8 @@ public class Fachada implements FachadaIncentivos {
       log.warn("No se pudo obtener el historial de donaciones del donador {}", donadorID, e);
       return;
     }
-
-    Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones);
-
+    AtomicInteger progresoHolder = new AtomicInteger(0);
+    Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones, progresoHolder);
     if (cumplida) {
 
       misionesCompletadas.increment();
@@ -304,8 +307,46 @@ public class Fachada implements FachadaIncentivos {
 
       // Avisamos a DyE que el donador ya no tiene misión en curso.
       notificarMisionADonadoresYEntidades(donadorID, null);
+    } else {
+    // 1. Buscamos el registro de la misión del donador
+    MisionDeDonador misionDeDonador = misionesService.buscarPorDonador(donadorID).orElse(null);
+
+    if (misionDeDonador != null) {
+      int nuevoProgreso = progresoHolder.get();
+
+      // 2. Si el progreso cambió respecto a lo que teníamos guardado, actualizamos
+      if (Integer.valueOf(nuevoProgreso).equals(misionDeDonador.getProgreso())) {
+        // Opcional: si querés evitar updates innecesarios si el número es el mismo
+      } else {
+        misionDeDonador.setProgreso(nuevoProgreso);
+
+        // 3. Guardamos en la base de datos de Postgres (Incentivos)
+        misionesService.actualizarMisionADonador(misionDeDonador); // (o el método save que uses en tu repository/service)
+
+        // 4. Armamos y disparamos el evento a RabbitMQ para el Servicio de Consultas
+        // (Acá mandas tu DTO con el ID de la misión, el nombre, el progreso y el objetivo)
+        }
+      }
     }
   }
+
+
+  private int obtenerObjetivoSegunTipo(TipoMisionEnum tipoMision) {
+    if (tipoMision == null) {
+      return 0;
+    }
+
+    return switch (tipoMision) {
+      case DONACIONES_EXITOSAS -> 20; // Pide 20 donaciones aceptadas
+      case COMPLETITUD -> 3;           // Pide donaciones a 3 categorías distintas
+      case REVOLUCION_DONADORA -> 10;  // Pide más de 10 donaciones de más de 50 unidades
+      case DONACIONES_ASCENDENTES -> 5; // Pide las últimas 5 donaciones ascendentes
+      default -> 0;
+    };
+  }
+
+
+
 
   // Regresión: revisa la misión que subió al donador a su categoría actual y, si ya no se cumple,
   // le saca la insignia y lo baja de categoría.
@@ -337,8 +378,8 @@ public class Fachada implements FachadaIncentivos {
       log.warn("No se pudo obtener el historial de donaciones del donador {}", donadorID, e);
       return;
     }
-
-    Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones);
+    AtomicInteger progresoHolder = new AtomicInteger(0);
+    Boolean cumplida = revisarEstadoMision(donadorID, mision, donaciones, progresoHolder);
 
     if (!cumplida) {
 
@@ -384,8 +425,9 @@ public class Fachada implements FachadaIncentivos {
   }
 
   public Boolean revisarEstadoMision(
-      String donadorID, MisionDTO mision, List<DonacionDTO> donaciones) {
+      String donadorID, MisionDTO mision, List<DonacionDTO> donaciones, AtomicInteger progresoHolder) {
 
+    int progresoActual = progresoHolder.get();
     switch (mision.tipo()) {
       case COMPLETITUD:
         // Donaciones a 3 categorías distintas. El DTO solo trae productoID, así que resolvemos
@@ -403,7 +445,9 @@ public class Fachada implements FachadaIncentivos {
             categoriasDistintas.add(categoriaID);
           }
         }
-        return categoriasDistintas.size() >= 3;
+        progresoActual = categoriasDistintas.size();
+        progresoHolder.set(progresoActual);
+        return progresoActual >= 3;
       case DONACIONES_EXITOSAS:
         //La misión consiste en realizar 20 donaciones exitosas (aceptadas).
         int contadorExitosas = 0;
@@ -412,7 +456,9 @@ public class Fachada implements FachadaIncentivos {
             contadorExitosas++;
           }
         }
-        return contadorExitosas >= 20;
+        progresoActual = contadorExitosas;
+        progresoHolder.set(progresoActual);
+        return progresoActual >= 20;
       case DONACIONES_ASCENDENTES:
         // Las últimas 5 donaciones deben tener cantidades estrictamente ascendentes.
         // Respetamos el orden en que las entrega Donaciones (es su responsabilidad mandarlas
@@ -424,15 +470,20 @@ public class Fachada implements FachadaIncentivos {
           }
         }
         if (cantidades.size() < 5) {
+          progresoHolder.set(0);
           return false;
         }
         // Tomamos las últimas 5 (en el orden recibido) y verificamos que sean ascendentes.
         List<Integer> ultimas5 = cantidades.subList(cantidades.size() - 5, cantidades.size());
         for (int i = 1; i < ultimas5.size(); i++) {
           if (ultimas5.get(i) <= ultimas5.get(i - 1)) {
+            progresoActual = 0;
+            progresoHolder.set(progresoActual);
             return false;
           }
+          progresoActual++;
         }
+        progresoHolder.set(progresoActual);
         return true;
       case REVOLUCION_DONADORA:
         int cantidadDonacionesMas50 = 0;
@@ -441,7 +492,9 @@ public class Fachada implements FachadaIncentivos {
             cantidadDonacionesMas50++;
           }
         }
-        return cantidadDonacionesMas50 > 10;
+        progresoActual = cantidadDonacionesMas50;
+        progresoHolder.set(progresoActual);
+        return progresoActual > 10;
       default:
         return false;
     }

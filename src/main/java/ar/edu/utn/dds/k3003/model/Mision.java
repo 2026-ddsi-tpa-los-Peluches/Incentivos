@@ -39,6 +39,8 @@ public class Mision {
   @Column(name = "tipo_mision")
   private TipoMisionEnum tipoMision;
 
+
+
   // Constructor vacío
   public Mision() {}
 
@@ -55,6 +57,7 @@ public class Mision {
     this.categoriaInicio = categoriaInicio;
     this.categoriaFin = categoriaFin;
     this.tipoMision = tipoMision;
+
   }
 
   // Getters y Setters
@@ -108,4 +111,5 @@ public class Mision {
   public void setTipoMision(TipoMisionEnum tipoMision) {
     this.tipoMision = tipoMision;
   }
+
 }
