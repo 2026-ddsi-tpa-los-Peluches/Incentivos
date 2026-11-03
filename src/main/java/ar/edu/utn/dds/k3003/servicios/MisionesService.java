@@ -1,13 +1,16 @@
 package ar.edu.utn.dds.k3003.servicios;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.TipoMisionEnum;
 import ar.edu.utn.dds.k3003.mappers.MisionMapper;
 import ar.edu.utn.dds.k3003.model.Mision;
 import ar.edu.utn.dds.k3003.model.MisionDeDonador;
+import ar.edu.utn.dds.k3003.publishers.MisionesIncentivosPublisher;
 import ar.edu.utn.dds.k3003.repositories.MisionDeDonadorRepository;
 import ar.edu.utn.dds.k3003.repositories.MisionRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -23,16 +26,22 @@ public class MisionesService {
   private final MisionMapper misionMapper = new MisionMapper();
   private final Counter misionesCreadas;
 
+  private final MisionesIncentivosPublisher misionesIncentivosPublisher;
+
   public MisionesService(
       MisionRepository misionRepository,
       MisionDeDonadorRepository misionDeDonadorRepository,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      MisionesIncentivosPublisher misionesIncentivosPublisher) {
     this.misionRepository = misionRepository;
     this.misionDeDonadorRepository = misionDeDonadorRepository;
     this.misionesCreadas =
         Counter.builder("incentivos.misiones.creadas")
             .description("Cantidad de misiones creadas")
             .register(meterRegistry);
+
+    //publishers
+    this.misionesIncentivosPublisher = misionesIncentivosPublisher;
   }
 
   // Los DTO manejan el id como String, pero las entidades lo tienen como Integer (autoincremental).
@@ -104,21 +113,53 @@ public class MisionesService {
     misionDeDonadorRepository.save(misionDeDonador);
   }
 
-  public void actualizarMisionADonador(MisionDeDonador misionDeDonador) {
+  public void actualizarMisionADonador(MisionDeDonador misionDeDonador, Integer nuevoProgreso, MisionDTO mision) {
     misionDeDonadorRepository.save(misionDeDonador);
+
+    //Llamo al conejo batman
+    int objetivo = obtenerObjetivoSegunTipo(mision.tipo());
+    misionesIncentivosPublisher.notificarProgreso(misionDeDonador, nuevoProgreso, mision, objetivo);
   }
 
 
-  // Pone la misión en curso en null sin tocar insignias ni categoría (esa decisión es de
-  // Fachada, según si la misión se completó, se perdió o se canceló).
-  public void limpiarMisionActual(String donadorID) {
+  public void completarMisionActual(String donadorID, String misionId, String nombreMision) {
     misionDeDonadorRepository
-        .findByDonadorId(donadorID)
-        .ifPresent(
-            misionDeDonador -> {
+            .findByDonadorId(donadorID)
+            .ifPresent(misionDeDonador -> {
               misionDeDonador.setMisionActualId(null);
               misionDeDonadorRepository.save(misionDeDonador);
+
+              // >>> Llamamos al publisher para notificar que se completó <<<
+              misionesIncentivosPublisher.notificarMisionCompletada(donadorID, misionId, nombreMision);
             });
+  }
+
+  public void limpiarMisionActual(String donadorID) {
+    misionDeDonadorRepository
+            .findByDonadorId(donadorID)
+            .ifPresent(misionDeDonador -> {
+              misionDeDonador.setMisionActualId(null);
+              misionDeDonadorRepository.save(misionDeDonador);
+
+              // >>> Llamamos al publisher para notificar que solo se limpió <<<
+              misionesIncentivosPublisher.notificarMisionLimpiada(donadorID);
+            });
+  }
+
+
+
+  private int obtenerObjetivoSegunTipo(TipoMisionEnum tipoMision) {
+    if (tipoMision == null) {
+      return 0;
+    }
+
+    return switch (tipoMision) {
+      case DONACIONES_EXITOSAS -> 20; // Pide 20 donaciones aceptadas
+      case COMPLETITUD -> 3;           // Pide donaciones a 3 categorías distintas
+      case REVOLUCION_DONADORA -> 10;  // Pide más de 10 donaciones de más de 50 unidades
+      case DONACIONES_ASCENDENTES -> 5; // Pide las últimas 5 donaciones ascendentes
+      default -> 0;
+    };
   }
 
   public Optional<MisionDeDonador> buscarPorDonador(String donadorID) {

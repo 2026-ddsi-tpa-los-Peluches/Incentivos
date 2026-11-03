@@ -303,7 +303,7 @@ public class Fachada implements FachadaIncentivos {
 
       fachadaDonadoresYEntidades.modifcarCategoria(donadorID, mision.categoriaFin().name());
 
-      misionesService.limpiarMisionActual(donadorID);
+      misionesService.completarMisionActual(donadorID, mision.id(), mision.nombre());
 
       // Avisamos a DyE que el donador ya no tiene misión en curso.
       notificarMisionADonadoresYEntidades(donadorID, null);
@@ -321,29 +321,14 @@ public class Fachada implements FachadaIncentivos {
         misionDeDonador.setProgreso(nuevoProgreso);
 
         // 3. Guardamos en la base de datos de Postgres (Incentivos)
-        misionesService.actualizarMisionADonador(misionDeDonador); // (o el método save que uses en tu repository/service)
-
-        // 4. Armamos y disparamos el evento a RabbitMQ para el Servicio de Consultas
-        // (Acá mandas tu DTO con el ID de la misión, el nombre, el progreso y el objetivo)
+        misionesService.actualizarMisionADonador(misionDeDonador, nuevoProgreso, mision);
         }
       }
     }
   }
 
 
-  private int obtenerObjetivoSegunTipo(TipoMisionEnum tipoMision) {
-    if (tipoMision == null) {
-      return 0;
-    }
 
-    return switch (tipoMision) {
-      case DONACIONES_EXITOSAS -> 20; // Pide 20 donaciones aceptadas
-      case COMPLETITUD -> 3;           // Pide donaciones a 3 categorías distintas
-      case REVOLUCION_DONADORA -> 10;  // Pide más de 10 donaciones de más de 50 unidades
-      case DONACIONES_ASCENDENTES -> 5; // Pide las últimas 5 donaciones ascendentes
-      default -> 0;
-    };
-  }
 
 
 
