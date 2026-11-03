@@ -7,9 +7,8 @@ public class MisionMapper {
 
   public Mision toModel(MisionDTO dto) {
     Mision mision = new Mision();
-    if (dto.id() != null && !dto.id().isBlank()) {
-      mision.setId(Integer.valueOf(dto.id()));
-    }
+    // El id lo genera la base (IDENTITY). No se copia el del DTO: si viene seteado,
+    // save() hace merge en vez de insert y Hibernate 6.6 tira StaleObjectStateException.
     mision.setNombre(dto.nombre());
     mision.setInsigniaId(dto.insigniaID());
     mision.setCategoriaInicio(dto.categoriaInicio());
