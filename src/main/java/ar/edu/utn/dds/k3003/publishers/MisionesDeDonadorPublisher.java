@@ -9,14 +9,13 @@ import ar.edu.utn.dds.k3003.model.MisionDeDonador;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 
 @Component
-public class MisionesIncentivosPublisher {
+public class MisionesDeDonadorPublisher {
 
     private final EventPublisher eventPublisher;
 
-    public MisionesIncentivosPublisher(EventPublisher eventPublisher) {
+    public MisionesDeDonadorPublisher(EventPublisher eventPublisher) {
         this.eventPublisher = eventPublisher;
     }
 
@@ -28,7 +27,7 @@ public class MisionesIncentivosPublisher {
                 Instant.now()
 
         );
-        eventPublisher.publicar("mision-progreso-exchange", eventoProgreso);
+        eventPublisher.publicar("mision-donador-progreso-exchange", eventoProgreso);
 
         System.out.println("Progreso de misión enviado a RabbitMQ para el donador ID: " + misionDeDonador.getDonadorId());
 
@@ -52,7 +51,7 @@ public class MisionesIncentivosPublisher {
         );
 
         // 3. Publicamos el evento al exchange correspondiente en RabbitMQ
-        eventPublisher.publicar("mision-completada-exchange", eventoCompletada);
+        eventPublisher.publicar("mision-donador-completada-exchange", eventoCompletada);
 
         System.out.println("Misión completada enviada a RabbitMQ para el donador ID: " + donadorId);
     }
@@ -61,7 +60,7 @@ public class MisionesIncentivosPublisher {
 
         MisionDonadorLimpiadaEvent evento = new MisionDonadorLimpiadaEvent(donadorId);
 
-        eventPublisher.publicar("mision-limpiada-exchange", evento);
+        eventPublisher.publicar("mision-donador-limpiada-exchange", evento);
         System.out.println("Misión limpiada enviada a RabbitMQ para donador: " + donadorId);
     }
 }

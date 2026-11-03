@@ -5,7 +5,8 @@ import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.TipoMisionEnum;
 import ar.edu.utn.dds.k3003.mappers.MisionMapper;
 import ar.edu.utn.dds.k3003.model.Mision;
 import ar.edu.utn.dds.k3003.model.MisionDeDonador;
-import ar.edu.utn.dds.k3003.publishers.MisionesIncentivosPublisher;
+import ar.edu.utn.dds.k3003.publishers.MisionesDeDonadorPublisher;
+import ar.edu.utn.dds.k3003.publishers.MisionesPublisher;
 import ar.edu.utn.dds.k3003.repositories.MisionDeDonadorRepository;
 import ar.edu.utn.dds.k3003.repositories.MisionRepository;
 import io.micrometer.core.instrument.Counter;
@@ -26,13 +27,15 @@ public class MisionesService {
   private final MisionMapper misionMapper = new MisionMapper();
   private final Counter misionesCreadas;
 
-  private final MisionesIncentivosPublisher misionesIncentivosPublisher;
+  private final MisionesDeDonadorPublisher misionesIncentivosPublisher;
+  private final MisionesPublisher misionesPublisher;
 
   public MisionesService(
       MisionRepository misionRepository,
       MisionDeDonadorRepository misionDeDonadorRepository,
       MeterRegistry meterRegistry,
-      MisionesIncentivosPublisher misionesIncentivosPublisher) {
+      MisionesDeDonadorPublisher misionesIncentivosPublisher,
+      MisionesPublisher misionesPublisher) {
     this.misionRepository = misionRepository;
     this.misionDeDonadorRepository = misionDeDonadorRepository;
     this.misionesCreadas =
@@ -42,6 +45,7 @@ public class MisionesService {
 
     //publishers
     this.misionesIncentivosPublisher = misionesIncentivosPublisher;
+    this.misionesPublisher = misionesPublisher;
   }
 
   // Los DTO manejan el id como String, pero las entidades lo tienen como Integer (autoincremental).
@@ -79,6 +83,9 @@ public class MisionesService {
     Mision mision = misionMapper.toModel(misionDTO);
     Mision guardada = misionRepository.save(mision);
 
+    //Le aviso al cantante de reggaeton
+    misionesPublisher.notificarMisionCreada(mision);
+
     misionesCreadas.increment();
 
     return misionMapper.toDTO(guardada);
@@ -90,6 +97,10 @@ public class MisionesService {
     buscarMisionModel(id)
         .orElseThrow(() -> new NoSuchElementException("No se encontró la misión con ID: " + id));
     misionRepository.deleteById(Integer.valueOf(id));
+
+    //Le aviso al cantante de reggaeton
+    misionesPublisher.notificarMisionEliminada(id);
+
   }
 
   // La usa revisarMisionAnterior para encontrar qué misión fue la que subió al donador

@@ -5,11 +5,11 @@ import ar.edu.utn.dds.k3003.events.InsigniaDonadorQuitadaEvent;
 import org.springframework.stereotype.Component;
 
 @Component
-public class InsigniasIncentivosPublisher {
+public class InsigniasDeDonadorPublisher {
 
     private final EventPublisher eventPublisher;
 
-    public InsigniasIncentivosPublisher(EventPublisher eventPublisher) {
+    public InsigniasDeDonadorPublisher(EventPublisher eventPublisher) {
         this.eventPublisher = eventPublisher;
     }
 
