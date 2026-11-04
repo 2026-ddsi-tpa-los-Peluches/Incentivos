@@ -5,6 +5,7 @@ import ar.edu.utn.dds.k3003.mappers.InsigniaMapper;
 import ar.edu.utn.dds.k3003.model.Insignia;
 import ar.edu.utn.dds.k3003.model.InsigniasDeDonador;
 import ar.edu.utn.dds.k3003.publishers.InsigniasDeDonadorPublisher;
+import ar.edu.utn.dds.k3003.publishers.InsigniasPublisher;
 import ar.edu.utn.dds.k3003.repositories.InsigniaDeDonadorRepository;
 import ar.edu.utn.dds.k3003.repositories.InsigniaRepository;
 import io.micrometer.core.instrument.Counter;
@@ -25,13 +26,16 @@ public class InsigniasService {
   private final InsigniaMapper insigniaMapper = new InsigniaMapper();
   private final Counter insigniasCreadas;
 
-  InsigniasDeDonadorPublisher insigniasPublisher;
+  InsigniasDeDonadorPublisher insigniasDeDonadorPublisher;
+  InsigniasPublisher insigniasPublisher;
 
   public InsigniasService(
       InsigniaRepository insigniaRepository,
       InsigniaDeDonadorRepository insigniaDeDonadorRepository,
       MeterRegistry meterRegistry,
-      InsigniasDeDonadorPublisher insigniasPublisher) {
+      InsigniasDeDonadorPublisher insigniasDeDonadorPublisher,
+      InsigniasPublisher insigniasPublisher
+  ) {
     this.insigniaRepository = insigniaRepository;
     this.insigniaDeDonadorRepository = insigniaDeDonadorRepository;
     this.insigniasCreadas =
@@ -40,6 +44,7 @@ public class InsigniasService {
             .register(meterRegistry);
 
     //Publisher
+    this.insigniasDeDonadorPublisher = insigniasDeDonadorPublisher;
     this.insigniasPublisher = insigniasPublisher;
   }
 
@@ -78,6 +83,9 @@ public class InsigniasService {
     Insignia insignia = insigniaMapper.toModel(insigniaDTO);
     Insignia guardada = insigniaRepository.save(insignia);
 
+    // le aviso al rabbiol
+    insigniasPublisher.notificarInsigniaCreada(insignia);
+
     insigniasCreadas.increment();
 
     return insigniaMapper.toDTO(guardada);
@@ -89,6 +97,9 @@ public class InsigniasService {
     buscarInsigniaModel(id)
         .orElseThrow(() -> new NoSuchElementException("No se encontró la insignia con ID: " + id));
     insigniaRepository.deleteById(Integer.valueOf(id));
+
+    // le aviso al rabbiol
+    insigniasPublisher.notificarInsigniaEliminada(id);
   }
 
   public List<InsigniaDTO> obtenerInsigniasPorIds(List<String> ids) {
@@ -112,7 +123,7 @@ public class InsigniasService {
     insigniaDeDonadorRepository.save(donador);
 
     // avisar al conejo
-    insigniasPublisher.notificarInsigniaAgregada(donadorID, insigniaID);
+    insigniasDeDonadorPublisher.notificarInsigniaAgregada(donadorID, insigniaID);
   }
 
   public void quitarInsigniaDeDonador(String donadorID, String insigniaID) {
@@ -130,6 +141,6 @@ public class InsigniasService {
     insigniaDeDonadorRepository.save(donador);
 
     // avisar al conejo
-    insigniasPublisher.notificarInsigniaQuitada(donadorID, insigniaID);
+    insigniasDeDonadorPublisher.notificarInsigniaQuitada(donadorID, insigniaID);
   }
 }
