@@ -15,13 +15,13 @@ public class InsigniasDeDonadorPublisher {
 
     public void notificarInsigniaAgregada(String donadorId, String insigniaId) {
         InsigniaDonadorAgregadaEvent evento = new InsigniaDonadorAgregadaEvent(donadorId, insigniaId);
-        eventPublisher.publicar("insignia-agregada-exchange", evento);
+        eventPublisher.publicar("insignia-donador-agregada-exchange", evento);
         System.out.println("Insignia " + insigniaId + " agregada enviada para donador: " + donadorId);
     }
 
     public void notificarInsigniaQuitada(String donadorId, String insigniaId) {
         InsigniaDonadorQuitadaEvent evento = new InsigniaDonadorQuitadaEvent(donadorId, insigniaId);
-        eventPublisher.publicar("insignia-quitada-exchange", evento);
+        eventPublisher.publicar("insignia-donador-quitada-exchange", evento);
         System.out.println("Insignia " + insigniaId + " quitada enviada para donador: " + donadorId);
     }
 }

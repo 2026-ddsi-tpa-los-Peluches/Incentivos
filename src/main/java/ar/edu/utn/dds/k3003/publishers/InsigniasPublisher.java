@@ -22,7 +22,7 @@ public class InsigniasPublisher {
                 insignia.getNombre(),
                 insignia.getDescripcion()
         );
-        eventPublisher.publicar("insignia-sincronizada-exchange", evento);
+        eventPublisher.publicar("insignia-agregada-exchange", evento);
         System.out.println("Insignia creada enviada a RabbitMQ con ID: " + insignia.getId());
     }
 
