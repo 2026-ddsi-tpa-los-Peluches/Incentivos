@@ -22,13 +22,13 @@ public class InsigniasPublisher {
                 insignia.getNombre(),
                 insignia.getDescripcion()
         );
-        eventPublisher.publicar("insignia-agregada-exchange", evento);
+        eventPublisher.publicar("insignia-agregada", evento);
         System.out.println("Insignia creada enviada a RabbitMQ con ID: " + insignia.getId());
     }
 
     public void notificarInsigniaEliminada(String insigniaId) {
         InsigniaEliminadaEvent evento = new InsigniaEliminadaEvent(insigniaId);
-        eventPublisher.publicar("insignia-eliminada-exchange", evento);
+        eventPublisher.publicar("insignia-eliminada", evento);
         System.out.println("Insignia eliminada enviada a RabbitMQ con ID: " + insigniaId);
     }
 }
