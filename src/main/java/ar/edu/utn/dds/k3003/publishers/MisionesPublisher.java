@@ -22,13 +22,13 @@ public class MisionesPublisher {
                 mision.getCategoriaFin().toString(),
                 mision.getTipoMision().toString()
         );
-        eventPublisher.publicar("mision-agregada-exchange", evento);
+        eventPublisher.publicar("mision-agregada", evento);
         System.out.println(" Misión creada enviada a RabbitMQ con ID: " + mision.getId());
     }
 
     public void notificarMisionEliminada(String misionId) {
         MisionEliminadaEvent evento = new MisionEliminadaEvent(misionId);
-        eventPublisher.publicar("mision-eliminada-exchange", evento);
+        eventPublisher.publicar("mision-eliminada", evento);
         System.out.println(" Misión eliminada enviada a RabbitMQ con ID: " + misionId);
     }
 }

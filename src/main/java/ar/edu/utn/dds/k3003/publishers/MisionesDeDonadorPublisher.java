@@ -27,7 +27,7 @@ public class MisionesDeDonadorPublisher {
                 Instant.now()
 
         );
-        eventPublisher.publicar("mision-donador-progreso-exchange", eventoProgreso);
+        eventPublisher.publicar("mision-donador-progreso", eventoProgreso);
 
         System.out.println("Progreso de misión enviado a RabbitMQ para el donador ID: " + misionDeDonador.getDonadorId());
 
@@ -51,7 +51,7 @@ public class MisionesDeDonadorPublisher {
         );
 
         // 3. Publicamos el evento al exchange correspondiente en RabbitMQ
-        eventPublisher.publicar("mision-donador-completada-exchange", eventoCompletada);
+        eventPublisher.publicar("mision-donador-completada", eventoCompletada);
 
         System.out.println("Misión completada enviada a RabbitMQ para el donador ID: " + donadorId);
     }
@@ -60,7 +60,9 @@ public class MisionesDeDonadorPublisher {
 
         MisionDonadorLimpiadaEvent evento = new MisionDonadorLimpiadaEvent(donadorId);
 
-        eventPublisher.publicar("mision-donador-limpiada-exchange", evento);
+        eventPublisher.publicar("mision-donador-limpiada", evento);
         System.out.println("Misión limpiada enviada a RabbitMQ para donador: " + donadorId);
     }
+
+
 }
