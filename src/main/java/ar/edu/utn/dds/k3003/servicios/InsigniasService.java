@@ -84,7 +84,7 @@ public class InsigniasService {
     Insignia guardada = insigniaRepository.save(insignia);
 
     // le aviso al rabbiol
-    insigniasPublisher.notificarInsigniaCreada(insignia);
+    insigniasPublisher.notificarInsigniaCreada(guardada);
 
     insigniasCreadas.increment();
 

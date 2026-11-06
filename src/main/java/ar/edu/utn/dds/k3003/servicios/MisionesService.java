@@ -84,7 +84,7 @@ public class MisionesService {
     Mision guardada = misionRepository.save(mision);
 
     //Le aviso al cantante de reggaeton
-    misionesPublisher.notificarMisionCreada(mision);
+    misionesPublisher.notificarMisionCreada(guardada);
 
     misionesCreadas.increment();
 
