@@ -2,8 +2,8 @@ package ar.edu.utn.dds.k3003.publishers;
 
 
 
-import ar.edu.utn.dds.k3003.events.InsigniaEliminadaEvent;
-import ar.edu.utn.dds.k3003.events.InsigniaAgregadaEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.InsigniaEliminadaEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.InsigniaAgregadaEvent;
 import ar.edu.utn.dds.k3003.model.Insignia;
 import org.springframework.stereotype.Component;
 

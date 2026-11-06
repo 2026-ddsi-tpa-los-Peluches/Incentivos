@@ -1,7 +1,7 @@
 package ar.edu.utn.dds.k3003.publishers;
 
-import ar.edu.utn.dds.k3003.events.InsigniaDonadorAgregadaEvent;
-import ar.edu.utn.dds.k3003.events.InsigniaDonadorQuitadaEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.InsigniaDonadorAgregadaEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.InsigniaDonadorQuitadaEvent;
 import org.springframework.stereotype.Component;
 
 @Component

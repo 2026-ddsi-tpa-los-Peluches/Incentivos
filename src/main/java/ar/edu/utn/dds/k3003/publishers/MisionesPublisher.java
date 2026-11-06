@@ -1,6 +1,6 @@
 package ar.edu.utn.dds.k3003.publishers;
-import ar.edu.utn.dds.k3003.events.MisionEliminadaEvent;
-import ar.edu.utn.dds.k3003.events.MisionAgregadaEvent;
+import ar.edu.utn.dds.k3003.events.misionEvents.MisionEliminadaEvent;
+import ar.edu.utn.dds.k3003.events.misionEvents.MisionAgregadaEvent;
 import ar.edu.utn.dds.k3003.model.Mision;
 import org.springframework.stereotype.Component;
 

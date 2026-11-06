@@ -2,9 +2,11 @@ package ar.edu.utn.dds.k3003.publishers;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import ar.edu.utn.dds.k3003.dtos.MisionHistoricaDTO;
-import ar.edu.utn.dds.k3003.events.MisionDonadorCompletadaEvent;
-import ar.edu.utn.dds.k3003.events.MisionDonadorLimpiadaEvent;
-import ar.edu.utn.dds.k3003.events.MisionDonadorProgresoActualizadoEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.AsignarMisionDonadorEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.MisionDonadorCompletadaEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.MisionDonadorLimpiadaEvent;
+import ar.edu.utn.dds.k3003.events.donadorEvents.MisionDonadorProgresoActualizadoEvent;
+import ar.edu.utn.dds.k3003.model.Mision;
 import ar.edu.utn.dds.k3003.model.MisionDeDonador;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +20,25 @@ public class MisionesDeDonadorPublisher {
     public MisionesDeDonadorPublisher(EventPublisher eventPublisher) {
         this.eventPublisher = eventPublisher;
     }
+
+    public void notificarAsignarMision(String donadorId, Mision mision, int objetivo) {
+        AsignarMisionDonadorEvent evento = new AsignarMisionDonadorEvent(
+                donadorId,
+               mision.getId().toString(),
+                mision.getNombre(),
+                mision.getInsigniaId(),
+                mision.getTipoMision().toString(),
+                0, // Progreso inicial al asignar
+                objetivo,
+                mision.getCategoriaInicio().toString(),
+                mision.getCategoriaFin().toString()
+        );
+
+        eventPublisher.publicar("donador-mision-asignar", evento);
+        System.out.println("Asignación de misión enviada a RabbitMQ para el donador ID: " + donadorId);
+    }
+
+
 
     public void notificarProgreso(MisionDeDonador misionDeDonador, Integer nuevoProgreso, MisionDTO mision, Integer objetivo) {
         MisionDonadorProgresoActualizadoEvent eventoProgreso = new MisionDonadorProgresoActualizadoEvent(
@@ -63,6 +84,4 @@ public class MisionesDeDonadorPublisher {
         eventPublisher.publicar("mision-donador-limpiada", evento);
         System.out.println("Misión limpiada enviada a RabbitMQ para donador: " + donadorId);
     }
-
-
 }

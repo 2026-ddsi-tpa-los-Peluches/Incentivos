@@ -23,7 +23,7 @@ public class DonadoresYEntidadesClient {
     // Toma la URL del servicio de Donadores y Entidades desde la config (env var DONADORES_Y_ENTIDADES).
     // Si no está seteada, cae al default localhost y trabaja en modo "mock" (no hace llamadas reales).
     public DonadoresYEntidadesClient(
-            @Value("${DONADORES_Y_ENTIDADES:http://localhost:8082}") String baseUrl) {
+            @Value("${url.donadoresYEntidades}") String baseUrl) {
         this.baseUrl = baseUrl;
         this.isMock = "http://localhost:8082".equals(baseUrl);
     }

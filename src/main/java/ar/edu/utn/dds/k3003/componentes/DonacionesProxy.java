@@ -33,7 +33,7 @@ public class DonacionesProxy implements FachadaDonaciones {
     private final String baseUrl;
     private final boolean isMock;
 
-    public DonacionesProxy(@Value("${DONACIONES_SERVICE_URL:}") String baseUrl) {
+    public DonacionesProxy(@Value("${url.donaciones}") String baseUrl) {
         this.baseUrl = baseUrl;
         this.isMock = (baseUrl == null || baseUrl.isBlank());
     }

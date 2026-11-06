@@ -27,14 +27,14 @@ public class MisionesService {
   private final MisionMapper misionMapper = new MisionMapper();
   private final Counter misionesCreadas;
 
-  private final MisionesDeDonadorPublisher misionesIncentivosPublisher;
+  private final MisionesDeDonadorPublisher misionesDeDonadorPublisher;
   private final MisionesPublisher misionesPublisher;
 
   public MisionesService(
       MisionRepository misionRepository,
       MisionDeDonadorRepository misionDeDonadorRepository,
       MeterRegistry meterRegistry,
-      MisionesDeDonadorPublisher misionesIncentivosPublisher,
+      MisionesDeDonadorPublisher misionesDeDonadorPublisher,
       MisionesPublisher misionesPublisher) {
     this.misionRepository = misionRepository;
     this.misionDeDonadorRepository = misionDeDonadorRepository;
@@ -44,7 +44,7 @@ public class MisionesService {
             .register(meterRegistry);
 
     //publishers
-    this.misionesIncentivosPublisher = misionesIncentivosPublisher;
+    this.misionesDeDonadorPublisher = misionesDeDonadorPublisher;
     this.misionesPublisher = misionesPublisher;
   }
 
@@ -122,6 +122,16 @@ public class MisionesService {
         misionDeDonador.agregarMision(misionID);
 
     misionDeDonadorRepository.save(misionDeDonador);
+
+      Mision mision = buscarMisionModel(misionID)
+              .orElseThrow(() -> new NoSuchElementException("No se encontró la misión con ID: " + misionID));
+
+    int objetivoSegunTipo = obtenerObjetivoSegunTipo(mision.getTipoMision());
+
+
+    misionesDeDonadorPublisher.notificarAsignarMision(donadorID, mision, objetivoSegunTipo);
+
+
   }
 
   public void actualizarMisionADonador(MisionDeDonador misionDeDonador, Integer nuevoProgreso, MisionDTO mision) {
@@ -129,7 +139,7 @@ public class MisionesService {
 
     //Llamo al conejo batman
     int objetivo = obtenerObjetivoSegunTipo(mision.tipo());
-    misionesIncentivosPublisher.notificarProgreso(misionDeDonador, nuevoProgreso, mision, objetivo);
+    misionesDeDonadorPublisher.notificarProgreso(misionDeDonador, nuevoProgreso, mision, objetivo);
   }
 
 
@@ -141,7 +151,7 @@ public class MisionesService {
               misionDeDonadorRepository.save(misionDeDonador);
 
               // >>> Llamamos al publisher para notificar que se completó <<<
-              misionesIncentivosPublisher.notificarMisionCompletada(donadorID, misionId, nombreMision);
+              misionesDeDonadorPublisher.notificarMisionCompletada(donadorID, misionId, nombreMision);
             });
   }
 
@@ -153,7 +163,7 @@ public class MisionesService {
               misionDeDonadorRepository.save(misionDeDonador);
 
               // >>> Llamamos al publisher para notificar que solo se limpió <<<
-              misionesIncentivosPublisher.notificarMisionLimpiada(donadorID);
+              misionesDeDonadorPublisher.notificarMisionLimpiada(donadorID);
             });
   }
 

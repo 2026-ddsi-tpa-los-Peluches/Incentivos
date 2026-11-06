@@ -33,7 +33,7 @@ public class DonadoresYEntidadesProxy implements FachadaDonadoresYEntidades {
             new RestTemplate(new org.springframework.http.client.JdkClientHttpRequestFactory());
     private final String baseUrl;
 
-    public DonadoresYEntidadesProxy(@Value("${DONADORES_Y_ENTIDADES:}") String baseUrl) {
+    public DonadoresYEntidadesProxy(@Value("${url.donadoresYEntidades}") String baseUrl) {
         this.baseUrl = baseUrl;
     }
 
