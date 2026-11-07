@@ -1,4 +1,4 @@
-package ar.edu.utn.dds.k3003.events.donadorEvents;
+package ar.edu.utn.dds.k3003.events.insigniaEvents;
 
 import lombok.Getter;
 
