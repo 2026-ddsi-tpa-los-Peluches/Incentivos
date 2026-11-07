@@ -166,6 +166,8 @@ public class Fachada implements FachadaIncentivos {
   public void quitarMisionDeDonador(String donadorID) {
     try {
       fachadaDonadoresYEntidades.buscarDonadorPorID(donadorID);
+    } catch (NoSuchElementException e) {
+      throw e; // donador inexistente -> el controller responde 404 (antes se envolvía y daba 500)
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
