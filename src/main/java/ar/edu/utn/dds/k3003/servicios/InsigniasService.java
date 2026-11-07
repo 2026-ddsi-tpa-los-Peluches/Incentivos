@@ -110,7 +110,7 @@ public class InsigniasService {
   }
 
   public void agregarInsigniaADonador(String donadorID, String insigniaID) {
-    buscarInsigniaModel(insigniaID)
+    Insignia insignia = buscarInsigniaModel(insigniaID)
         .orElseThrow(() -> new NoSuchElementException("No existe la insignia"));
 
     InsigniasDeDonador donador =
@@ -122,8 +122,8 @@ public class InsigniasService {
 
     insigniaDeDonadorRepository.save(donador);
 
-    // avisar al conejo
-    insigniasDeDonadorPublisher.notificarInsigniaAgregada(donadorID, insigniaID);
+
+    insigniasDeDonadorPublisher.notificarInsigniaAgregada(donadorID, insignia.getId().toString(), insignia.getNombre(), insignia.getDescripcion());
   }
 
   public void quitarInsigniaDeDonador(String donadorID, String insigniaID) {
